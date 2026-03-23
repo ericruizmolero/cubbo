@@ -415,6 +415,25 @@ $(document).ready(function () {
     document.addEventListener('keydown', handleEscape);
     document.addEventListener('click', handleDocClick);
 
+    // ─── PLAIN NAV LINKS BACKDROP ─────────────────────────────────────────────
+const plainLinks = [...document.querySelectorAll('.navbar_link.dynamic-hover')];
+
+plainLinks.forEach((link) => {
+  link.addEventListener('mouseenter', () => {
+    // Don't fight the dropdown if it's open
+    if (state.isOpen) return;
+    clearTimeout(state.leaveTimer);
+    gsap.to(backdrop, { autoAlpha: 1, duration: DUR.backdropIn, ease: 'power2.out' });
+  });
+
+  link.addEventListener('mouseleave', () => {
+    if (state.isOpen) return;
+    state.leaveTimer = setTimeout(() => {
+      gsap.to(backdrop, { autoAlpha: 0, duration: DUR.backdropOut, ease: 'power2.out' });
+    }, HOVER_LEAVE);
+  });
+});
+
     // Init
     resetDesktop();
   }
