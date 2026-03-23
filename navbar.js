@@ -2,10 +2,10 @@ $(document).ready(function () {
 
   // ─── CURSOR ──────────────────────────────────────────────────────────────────
 
- function initCursor($cursor, $targets) {
+  function initCursor($cursor, $targets) {
     let leaveTimer = null;
     let pinned     = null;
-    let hoveredEl  = null; // ← añadir esto
+    let hoveredEl  = null;
 
     function snapCursor($el) {
       clearTimeout(leaveTimer);
@@ -18,7 +18,7 @@ $(document).ready(function () {
 
     function releaseCursor() {
       if (pinned) return;
-      if (hoveredEl) return; // ← no ocultar si hay algo hovered
+      if (hoveredEl) return;
       $cursor.css('opacity', 0);
       leaveTimer = setTimeout(function () {
         $cursor.css({ width: '', height: '' });
@@ -26,12 +26,12 @@ $(document).ready(function () {
     }
 
     $targets.mouseenter(function () {
-      hoveredEl = this; // ← registrar
+      hoveredEl = this;
       snapCursor($(this));
     });
 
     $targets.mouseleave(function () {
-      hoveredEl = null; // ← limpiar
+      hoveredEl = null;
       if (pinned && $(this).is(pinned)) return;
       releaseCursor();
     });
@@ -43,7 +43,7 @@ $(document).ready(function () {
       },
       unpin: function () {
         pinned = null;
-        releaseCursor(); // ahora respeta hoveredEl
+        releaseCursor();
       },
     };
   }
@@ -143,7 +143,6 @@ $(document).ready(function () {
     function resetToggles() {
       toggles.forEach((t) => {
         t.setAttribute('aria-expanded', 'false');
-        // Reset all arrows to down on full reset
         morphArrowDown(t);
       });
     }
@@ -269,7 +268,6 @@ $(document).ready(function () {
       resetToggles();
       if (toToggle) toToggle.setAttribute('aria-expanded', 'true');
 
-      // Morph from arrow down, to arrow up
       morphArrowDown(fromToggle);
       morphArrowUp(toToggle);
       pinCursor(toName);
@@ -307,7 +305,6 @@ $(document).ready(function () {
       clearTimeout(state.leaveTimer);
       state.leaveTimer = null;
       clearTimeout(state.hoverTimer);
-      // Morph arrow up immediately on hover (before panel opens)
       morphArrowUp(toggle);
       state.hoverTimer = setTimeout(() => openDropdown(name), state.isOpen ? 0 : HOVER_ENTER);
     }
@@ -316,7 +313,6 @@ $(document).ready(function () {
       const toggle = e.currentTarget;
       clearTimeout(state.hoverTimer);
       state.hoverTimer = null;
-      // Only morph back if this toggle's panel is not the active one
       if (!state.isOpen || state.activePanel !== toggle.getAttribute('data-dropdown-toggle')) {
         morphArrowDown(toggle);
       }
@@ -415,24 +411,23 @@ $(document).ready(function () {
     document.addEventListener('keydown', handleEscape);
     document.addEventListener('click', handleDocClick);
 
-    // ─── PLAIN NAV LINKS BACKDROP ─────────────────────────────────────────────
-const plainLinks = [...document.querySelectorAll('.navbar_link.dynamic-hover')];
+    // ─── ALL NAV LINKS BACKDROP ───────────────────────────────────────────────
+    const allNavLinks = [...document.querySelectorAll('.navbar_link-layout')];
 
-plainLinks.forEach((link) => {
-  link.addEventListener('mouseenter', () => {
-    // Don't fight the dropdown if it's open
-    if (state.isOpen) return;
-    clearTimeout(state.leaveTimer);
-    gsap.to(backdrop, { autoAlpha: 1, duration: DUR.backdropIn, ease: 'power2.out' });
-  });
+    allNavLinks.forEach((link) => {
+      link.addEventListener('mouseenter', () => {
+        if (state.isOpen) return;
+        clearTimeout(state.leaveTimer);
+        gsap.to(backdrop, { autoAlpha: 1, duration: DUR.backdropIn, ease: 'power2.out' });
+      });
 
-  link.addEventListener('mouseleave', () => {
-    if (state.isOpen) return;
-    state.leaveTimer = setTimeout(() => {
-      gsap.to(backdrop, { autoAlpha: 0, duration: DUR.backdropOut, ease: 'power2.out' });
-    }, HOVER_LEAVE);
-  });
-});
+      link.addEventListener('mouseleave', () => {
+        if (state.isOpen) return;
+        state.leaveTimer = setTimeout(() => {
+          gsap.to(backdrop, { autoAlpha: 0, duration: DUR.backdropOut, ease: 'power2.out' });
+        }, HOVER_LEAVE);
+      });
+    });
 
     // Init
     resetDesktop();
@@ -441,4 +436,3 @@ plainLinks.forEach((link) => {
   initMegaNav();
 
 });
-
