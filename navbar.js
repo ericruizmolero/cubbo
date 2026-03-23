@@ -2,10 +2,10 @@ $(document).ready(function () {
 
   // ─── CURSOR ──────────────────────────────────────────────────────────────────
 
-  function initCursor($cursor, $targets) {
+ function initCursor($cursor, $targets) {
     let leaveTimer = null;
     let pinned     = null;
-    let hoveredEl  = null;
+    let hoveredEl  = null; // ← añadir esto
 
     function snapCursor($el) {
       clearTimeout(leaveTimer);
@@ -18,7 +18,7 @@ $(document).ready(function () {
 
     function releaseCursor() {
       if (pinned) return;
-      if (hoveredEl) return;
+      if (hoveredEl) return; // ← no ocultar si hay algo hovered
       $cursor.css('opacity', 0);
       leaveTimer = setTimeout(function () {
         $cursor.css({ width: '', height: '' });
@@ -26,12 +26,12 @@ $(document).ready(function () {
     }
 
     $targets.mouseenter(function () {
-      hoveredEl = this;
+      hoveredEl = this; // ← registrar
       snapCursor($(this));
     });
 
     $targets.mouseleave(function () {
-      hoveredEl = null;
+      hoveredEl = null; // ← limpiar
       if (pinned && $(this).is(pinned)) return;
       releaseCursor();
     });
@@ -43,7 +43,7 @@ $(document).ready(function () {
       },
       unpin: function () {
         pinned = null;
-        releaseCursor();
+        releaseCursor(); // ahora respeta hoveredEl
       },
     };
   }
@@ -143,6 +143,7 @@ $(document).ready(function () {
     function resetToggles() {
       toggles.forEach((t) => {
         t.setAttribute('aria-expanded', 'false');
+        // Reset all arrows to down on full reset
         morphArrowDown(t);
       });
     }
@@ -268,6 +269,7 @@ $(document).ready(function () {
       resetToggles();
       if (toToggle) toToggle.setAttribute('aria-expanded', 'true');
 
+      // Morph from arrow down, to arrow up
       morphArrowDown(fromToggle);
       morphArrowUp(toToggle);
       pinCursor(toName);
@@ -305,6 +307,7 @@ $(document).ready(function () {
       clearTimeout(state.leaveTimer);
       state.leaveTimer = null;
       clearTimeout(state.hoverTimer);
+      // Morph arrow up immediately on hover (before panel opens)
       morphArrowUp(toggle);
       state.hoverTimer = setTimeout(() => openDropdown(name), state.isOpen ? 0 : HOVER_ENTER);
     }
@@ -313,6 +316,7 @@ $(document).ready(function () {
       const toggle = e.currentTarget;
       clearTimeout(state.hoverTimer);
       state.hoverTimer = null;
+      // Only morph back if this toggle's panel is not the active one
       if (!state.isOpen || state.activePanel !== toggle.getAttribute('data-dropdown-toggle')) {
         morphArrowDown(toggle);
       }
@@ -410,29 +414,6 @@ $(document).ready(function () {
     backdrop.addEventListener('click', closeDropdown);
     document.addEventListener('keydown', handleEscape);
     document.addEventListener('click', handleDocClick);
-
-    // ─── ALL NAV LINKS BACKDROP ───────────────────────────────────────────────
-const allNavLinks = [...document.querySelectorAll('.navbar_link-layout')];
-
-allNavLinks.forEach((link) => {
-  link.addEventListener('mouseenter', () => {
-    clearTimeout(state.leaveTimer); // siempre, sin guard
-    state.leaveTimer = null;
-    if (!state.isOpen) {
-      gsap.to(backdrop, { autoAlpha: 1, duration: DUR.backdropIn, ease: 'power2.out' });
-    }
-  });
-
-  link.addEventListener('mouseleave', () => {
-    state.leaveTimer = setTimeout(() => {
-      if (state.isOpen) {
-        closeDropdown();
-      } else {
-        gsap.to(backdrop, { autoAlpha: 0, duration: DUR.backdropOut, ease: 'power2.out' });
-      }
-    }, HOVER_LEAVE);
-  });
-});
 
     // Init
     resetDesktop();
