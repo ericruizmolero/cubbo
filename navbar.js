@@ -412,22 +412,27 @@ $(document).ready(function () {
     document.addEventListener('click', handleDocClick);
 
     // ─── ALL NAV LINKS BACKDROP ───────────────────────────────────────────────
-    const allNavLinks = [...document.querySelectorAll('.navbar_link-layout')];
+const allNavLinks = [...document.querySelectorAll('.navbar_link-layout')];
 
-    allNavLinks.forEach((link) => {
-      link.addEventListener('mouseenter', () => {
-        if (state.isOpen) return;
-        clearTimeout(state.leaveTimer);
-        gsap.to(backdrop, { autoAlpha: 1, duration: DUR.backdropIn, ease: 'power2.out' });
-      });
+allNavLinks.forEach((link) => {
+  link.addEventListener('mouseenter', () => {
+    clearTimeout(state.leaveTimer); // siempre, sin guard
+    state.leaveTimer = null;
+    if (!state.isOpen) {
+      gsap.to(backdrop, { autoAlpha: 1, duration: DUR.backdropIn, ease: 'power2.out' });
+    }
+  });
 
-      link.addEventListener('mouseleave', () => {
-        if (state.isOpen) return;
-        state.leaveTimer = setTimeout(() => {
-          gsap.to(backdrop, { autoAlpha: 0, duration: DUR.backdropOut, ease: 'power2.out' });
-        }, HOVER_LEAVE);
-      });
-    });
+  link.addEventListener('mouseleave', () => {
+    state.leaveTimer = setTimeout(() => {
+      if (state.isOpen) {
+        closeDropdown();
+      } else {
+        gsap.to(backdrop, { autoAlpha: 0, duration: DUR.backdropOut, ease: 'power2.out' });
+      }
+    }, HOVER_LEAVE);
+  });
+});
 
     // Init
     resetDesktop();
