@@ -4,8 +4,14 @@ function initNumberOdometer() {
   const initFlag = 'data-odometer-initialized'
   const activeTweens = new WeakMap()
 
-  // Safari (includes iOS) needs DPR-rounded px transforms; Chrome works correctly with em
+  // Safari (includes iOS) needs DPR-snapped px transforms; Chrome works correctly with em
   const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+  // Round a CSS px value to the nearest physical pixel to prevent Safari sub-pixel snapping.
+  // Applied to each final POSITION individually — never to the step — to avoid accumulated error.
+  // Example of the bug: step=28.8, dpr=3 → rounded step=28.667, targetPos=10 → 10×28.667=286.67px
+  // but correct position is 10×28.8=288px → 4 physical pixels off. Rounding the position avoids this.
+  const dpr = window.devicePixelRatio || 1
+  const snapPx = (val) => Math.round(val * dpr) / dpr
 
   // Configuration
   const defaults = {
@@ -72,7 +78,7 @@ function initNumberOdometer() {
     })
 
     ordered.forEach((data, orderIdx) => {
-      const { rollers, duration, step, pxStep, revealData } = data
+      const { rollers, duration, step, rawStep, revealData } = data
       const offset = orderIdx * elementStagger
 
       revealData.forEach(({ el, widthEm }) => {
@@ -87,7 +93,7 @@ function initNumberOdometer() {
       rollers.forEach(({ roller, targetPos }, digitIdx) => {
         const reversedIdx = rollers.length - 1 - digitIdx
         tl.to(roller, {
-          y: isSafari ? -targetPos * pxStep + 'px' : -targetPos * step + 'em',
+          y: isSafari ? snapPx(-targetPos * rawStep) + 'px' : -targetPos * step + 'em',
           duration,
           ease: defaults.ease,
           force3D: true
@@ -128,7 +134,7 @@ function initNumberOdometer() {
     segments = mapStartDigits(segments, startValue)
     segments = markHiddenSegments(segments, startValue)
 
-    const { rollers, revealEls, pxStep, step } = buildRollerDOM(el, segments, stepRatio, true)
+    const { rollers, revealEls, rawStep, step } = buildRollerDOM(el, segments, stepRatio, true)
 
     // Measure new natural width (in em)
     const newWidthEm = el.getBoundingClientRect().width / fontSize
@@ -167,7 +173,7 @@ function initNumberOdometer() {
     rollers.forEach(({ roller, targetPos }, digitIdx) => {
       const reversedIdx = rollers.length - 1 - digitIdx
       tl.to(roller, {
-        y: isSafari ? -targetPos * pxStep + 'px' : -targetPos * step + 'em',
+        y: isSafari ? snapPx(-targetPos * rawStep) + 'px' : -targetPos * step + 'em',
         duration,
         ease,
         force3D: true
@@ -279,23 +285,19 @@ function initNumberOdometer() {
     })
 
     // Use the browser's own computed line-height value in px as the roller cell step.
-    // This is more reliable than getBoundingClientRect() on the mask, which includes
-    // padding (0.05em) and produces a slightly different value — causing the snap on mobile.
-    // getComputedStyle().lineHeight always returns px on real elements, even on Safari.
+    // Keep it as an exact float — rounding happens per-position in the callers, not here.
     const cs = getComputedStyle(el)
     const computedLh = cs.lineHeight
     const fontSize = parseFloat(cs.fontSize)
     const rawStep = computedLh !== 'normal' ? parseFloat(computedLh) : fontSize * 1.2
-    // Round to the physical pixel grid so Safari does not micro-adjust at animation end
-    const dpr = window.devicePixelRatio || 1
-    const pxStep = Math.round(rawStep * dpr) / dpr
 
     pendingRollers.forEach(({ roller, seg }) => {
       const startDigit = seg.startDigit || 0
       const isReveal = grow && seg.hidden
 
       if (isSafari) {
-        gsap.set(roller, { y: isReveal ? pxStep + 'px' : -startDigit * pxStep + 'px' })
+        // Snap each initial position to the physical pixel grid individually
+        gsap.set(roller, { y: isReveal ? snapPx(rawStep) + 'px' : snapPx(-startDigit * rawStep) + 'px' })
       } else {
         gsap.set(roller, { y: isReveal ? step + 'em' : -startDigit * step + 'em' })
       }
@@ -306,7 +308,7 @@ function initNumberOdometer() {
       if (isReveal) revealEls.push(pendingRollers.find(p => p.roller === roller).mask)
     })
 
-    return { rollers, revealEls, pxStep, step }
+    return { rollers, revealEls, rawStep, step }
   }
 
   function cleanupElement(el, originalText) {
