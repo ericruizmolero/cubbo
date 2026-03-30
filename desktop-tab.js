@@ -32,18 +32,17 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!progressLine) return;
     progressLine.style.transition = "none";
     progressLine.style.transform = "scaleX(0)";
-    // Forzamos reflow para asegurar que el navegador registre el estado 0
-    progressLine.offsetWidth;
+    progressLine.offsetWidth; // Force reflow para que el reinicio sea instantáneo
   }
 
   function startLine(interval, fromProgress = 0) {
     if (!progressLine) return;
     const remaining = interval * (1 - fromProgress);
-    
+
     progressLine.style.transition = "none";
     progressLine.style.transform = `scaleX(${fromProgress})`;
-    
-    progressLine.offsetWidth; // Reflow crítico
+
+    progressLine.offsetWidth; // Force reflow
 
     progressLine.style.transition = `transform ${remaining}ms linear`;
     progressLine.style.transform = "scaleX(1)";
@@ -63,28 +62,22 @@ document.addEventListener("DOMContentLoaded", function () {
     linePausedAt = 0;
   }
 
-  function scheduleAdvance(menu, index, interval) {
-    // Limpiamos cualquier timer previo para evitar duplicados
-    clearTimeout(timers[index]);
-    
+  function scheduleAdvance(menu, index, delay) {
     timers[index] = setTimeout(() => {
       if (!isDesktop() || isPaused) return;
-      
       const current = menu.querySelector(":scope > .w--current");
       if (!current) return;
-      
       const next = current.nextElementSibling || menu.firstChild;
       
       if (next) {
-        // Al disparar el clic, el listener del tab ejecutará resetTimer()
-        // lo que reiniciará la línea y el siguiente ciclo.
+        // SOLUCIÓN PARA SAFARI: Usar dispatchEvent en lugar de .click()
         next.dispatchEvent(new MouseEvent('click', {
           view: window,
           bubbles: true,
           cancelable: true
         }));
       }
-    }, interval);
+    }, delay);
   }
 
   tabMenus.forEach((menu, index) => {
@@ -92,33 +85,28 @@ document.addEventListener("DOMContentLoaded", function () {
     const interval = 1000 * Number(menu.getAttribute(ATTR));
     const pauseOnHover = menu.getAttribute("pause-on-hover");
 
-    function startCycle() {
-      resetLine();
-      startLine(interval);
+    resetLine();
+
+    function startTimer() {
       scheduleAdvance(menu, index, interval);
+      startLine(interval);
     }
 
     function resetTimer() {
       clearTimeout(timers[index]);
+      resetLine();
       linePausedAt = 0;
-      if (!isPaused) {
-        startCycle();
-      } else {
-        resetLine();
-      }
+      if (!isPaused) startTimer();
     }
 
     if (pauseOnHover) {
-      menu.addEventListener("mouseenter", () => {
-        if (!isPaused) {
-          clearTimeout(timers[index]);
-          pauseLine();
-        }
+      menu.addEventListener("mouseover", () => {
+        clearTimeout(timers[index]);
+        pauseLine();
       });
-      menu.addEventListener("mouseleave", () => {
+      menu.addEventListener("mouseout", () => {
         if (!isPaused) {
-          const remainingTime = interval * (1 - linePausedAt);
-          scheduleAdvance(menu, index, remainingTime);
+          scheduleAdvance(menu, index, interval * (1 - linePausedAt));
           resumeLine(interval);
         }
       });
@@ -126,42 +114,42 @@ document.addEventListener("DOMContentLoaded", function () {
 
     tabs.forEach(tab => {
       tab.addEventListener("click", (e) => {
-        // IMPORTANTE: Esto unifica el comportamiento del clic automático y el manual
-        // pero solo reinicia el timer global si es un clic real o el disparado por nosotros
+        // El stopPropagation se mantiene, pero permitimos que resetTimer ocurra
+        // tanto en clicks manuales como en los automáticos de dispatchEvent
+        e.stopPropagation();
+        if (pauseOnHover && menu.matches(":hover") && e.isTrusted) return;
         resetTimer();
       });
     });
 
-    // Inicio inicial
-    startCycle();
+    startTimer();
   });
 
   if (playPauseBtn) {
     playPauseBtn.style.pointerEvents = "all";
     playPauseBtn.style.cursor = "pointer";
+
     const clickTarget = arrowWrap || playPauseBtn;
-    
+
     clickTarget.addEventListener("click", (e) => {
       if (!e.target.closest(".client_tabs-playpause")) return;
       if (!isDesktop()) return;
-      
+
       isPaused = !isPaused;
       setIcon(!isPaused);
-      
+
       tabMenus.forEach((menu, index) => {
         const interval = 1000 * Number(menu.getAttribute(ATTR));
         if (isPaused) {
           clearTimeout(timers[index]);
           pauseLine();
         } else {
-          // Si retomamos, calculamos el tiempo restante basado en la posición de la línea
-          const remainingTime = interval * (1 - linePausedAt);
-          scheduleAdvance(menu, index, remainingTime);
+          scheduleAdvance(menu, index, interval * (1 - linePausedAt));
           resumeLine(interval);
         }
       });
     });
-    
+
     setIcon(true);
   }
 });
