@@ -1,17 +1,8 @@
-// Resource
+// Resource: Number Odometer Optimized for iOS Safari
 function initNumberOdometer() {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const initFlag = 'data-odometer-initialized'
   const activeTweens = new WeakMap()
-
-  // Safari/iOS snaps transforms to physical pixels. Using tl.to() means GSAP reads
-  // the current y value at ScrollTrigger fire time — which can differ from what
-  // gsap.set() wrote at init time, causing mid-animation overshoot on iOS.
-  // Fix: use tl.fromTo() so GSAP never reads anything — start and end are both
-  // explicit, and both are snapped to the physical pixel grid on Safari.
-  const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
-  const dpr = window.devicePixelRatio || 1
-  const snapPx = val => Math.round(val * dpr) / dpr
 
   // Configuration
   const defaults = {
@@ -23,7 +14,7 @@ function initNumberOdometer() {
     revealEase: 'power2.out',
     triggerStart: 'top 80%',
     staggerOrder: 'left',
-    digitCycles: 2
+    digitCycles: 2 // 10 dígitos por ciclo
   }
 
   // Scroll-triggered groups
@@ -50,7 +41,7 @@ function initNumberOdometer() {
       segments = markHiddenSegments(segments, startValue)
 
       const grow = shouldGrow(el, hasExplicitStart, startValue, segments)
-      const { rollers, revealEls, rawStep } = buildRollerDOM(el, segments, step, grow)
+      const { rollers, revealEls } = buildRollerDOM(el, segments, step, grow)
 
       const fontSize = parseFloat(getComputedStyle(el).fontSize)
       const revealData = revealEls.map(revealEl => {
@@ -59,7 +50,7 @@ function initNumberOdometer() {
         return { el: revealEl, widthEm }
       })
 
-      return { el, rollers, duration, step, rawStep, revealData, originalText }
+      return { el, rollers, duration, step, revealData, originalText }
     })
 
     const ordered = applyStaggerOrder(elementData, staggerOrder)
@@ -78,7 +69,7 @@ function initNumberOdometer() {
     })
 
     ordered.forEach((data, orderIdx) => {
-      const { rollers, duration, step, rawStep, revealData } = data
+      const { rollers, duration, revealData } = data
       const offset = orderIdx * elementStagger
 
       revealData.forEach(({ el, widthEm }) => {
@@ -90,29 +81,32 @@ function initNumberOdometer() {
         }, offset)
       })
 
+      const totalCells = 10 * defaults.digitCycles
+      const cellPercent = 100 / totalCells
+
       rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
         const reversedIdx = rollers.length - 1 - digitIdx
-
-        // fromTo: GSAP never reads the current value — both endpoints are explicit.
-        // This prevents the mid-animation overshoot on iOS Safari where tl.to()
-        // would read a stale/misinterpreted y at ScrollTrigger fire time.
-        const fromY = isSafari
-          ? snapPx((isReveal ? 1 : -startDigit) * rawStep) + 'px'
-          : (isReveal ? step : -startDigit * step) + 'em'
-        const toY = isSafari
-          ? snapPx(-targetPos * rawStep) + 'px'
-          : -targetPos * step + 'em'
+        
+        // Usamos yPercent para evitar errores de redondeo de subpíxeles en iOS
+        const fromPerc = isReveal ? -cellPercent : (startDigit * cellPercent)
+        const toPerc = targetPos * cellPercent
 
         tl.fromTo(roller,
-          { y: fromY },
-          { y: toY, duration, ease: defaults.ease, force3D: true },
+          { yPercent: -fromPerc },
+          { 
+            yPercent: -toPerc, 
+            duration, 
+            ease: defaults.ease, 
+            force3D: true,
+            roundProps: "yPercent" // Forza a GSAP a usar valores enteros de porcentaje
+          },
           offset + reversedIdx * defaults.digitStagger
         )
       })
     })
   })
 
-  // Programmatic update (optional add-on)
+  // Programmatic update
   return function updateOdometer(el, newText, options = {}) {
     const currentText = el.textContent.trim()
     if (currentText === newText) return
@@ -121,35 +115,27 @@ function initNumberOdometer() {
     const ease = options.ease || defaults.ease
     const step = getLineHeightRatio(el)
 
-    // Kill any running animation and clear its inline style locks
     const existing = activeTweens.get(el)
     if (existing) {
       existing.kill()
       gsap.set(el, { clearProps: 'width,overflow' })
     }
 
-    // Measure current width before rebuilding (in em for responsive scaling)
     const fontSize = parseFloat(getComputedStyle(el).fontSize)
     const oldWidthEm = el.getBoundingClientRect().width / fontSize
 
-    // Parse current text as start, new text as end
     const startSegments = parseSegments(currentText)
-    const startDigitsStr = startSegments
-      .filter(s => s.type === 'digit')
-      .map(s => s.char)
-      .join('')
+    const startDigitsStr = startSegments.filter(s => s.type === 'digit').map(s => s.char).join('')
     const startValue = parseInt(startDigitsStr, 10) || 0
 
     let segments = parseSegments(newText)
     segments = mapStartDigits(segments, startValue)
     segments = markHiddenSegments(segments, startValue)
-    const { rollers, revealEls, rawStep } = buildRollerDOM(el, segments, step, true)
+    const { rollers, revealEls } = buildRollerDOM(el, segments, step, true)
 
-    // Measure new natural width (in em)
     const newWidthEm = el.getBoundingClientRect().width / fontSize
     const widthChanged = Math.abs(oldWidthEm - newWidthEm) > 0.01
 
-    // Lock to old width for smooth transition
     if (widthChanged) {
       gsap.set(el, { width: oldWidthEm + 'em', overflow: 'hidden' })
     }
@@ -162,7 +148,6 @@ function initNumberOdometer() {
     })
     activeTweens.set(el, tl)
 
-    // Animate element width
     if (widthChanged) {
       tl.to(el, {
         width: newWidthEm + 'em',
@@ -171,27 +156,29 @@ function initNumberOdometer() {
       }, 0)
     }
 
-    // Fade in hidden statics
     revealEls.forEach(revealEl => {
       if (revealEl.getAttribute('data-odometer-part') === 'static') {
         tl.to(revealEl, { opacity: 1, duration: 0.2 }, 0)
       }
     })
 
-    // Roll digits — fromTo for the same reason as scroll-triggered groups
+    const totalCells = 10 * defaults.digitCycles
+    const cellPercent = 100 / totalCells
+
     rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
       const reversedIdx = rollers.length - 1 - digitIdx
-
-      const fromY = isSafari
-        ? snapPx((isReveal ? 1 : -startDigit) * rawStep) + 'px'
-        : (isReveal ? step : -startDigit * step) + 'em'
-      const toY = isSafari
-        ? snapPx(-targetPos * rawStep) + 'px'
-        : -targetPos * step + 'em'
+      const fromPerc = isReveal ? -cellPercent : (startDigit * cellPercent)
+      const toPerc = targetPos * cellPercent
 
       tl.fromTo(roller,
-        { y: fromY },
-        { y: toY, duration, ease, force3D: true },
+        { yPercent: -fromPerc },
+        { 
+          yPercent: -toPerc, 
+          duration, 
+          ease, 
+          force3D: true,
+          roundProps: "yPercent"
+        },
         reversedIdx * defaults.digitStagger
       )
     })
@@ -203,15 +190,6 @@ function initNumberOdometer() {
     const lh = cs.lineHeight
     if (lh === 'normal') return 1.2
     return parseFloat(lh) / parseFloat(cs.fontSize)
-  }
-
-  // Returns line-height in exact px from computedStyle.
-  // More reliable than getBoundingClientRect() on masks (which includes padding).
-  function getRawStepPx(el) {
-    const cs = getComputedStyle(el)
-    const lh = cs.lineHeight
-    if (lh !== 'normal') return parseFloat(lh)
-    return parseFloat(cs.fontSize) * 1.2
   }
 
   function parseSegments(text) {
@@ -278,6 +256,7 @@ function initNumberOdometer() {
       if (seg.type === 'static') {
         const span = document.createElement('span')
         span.setAttribute('data-odometer-part', 'static')
+        span.style.display = 'inline-block'
         span.style.height = step + 'em'
         span.style.lineHeight = step
         span.textContent = seg.char
@@ -290,10 +269,14 @@ function initNumberOdometer() {
       }
       const mask = document.createElement('span')
       mask.setAttribute('data-odometer-part', 'mask')
+      mask.style.display = 'inline-block'
+      mask.style.overflow = 'hidden'
       mask.style.height = step + 'em'
       mask.style.lineHeight = step
+      
       const roller = document.createElement('span')
       roller.setAttribute('data-odometer-part', 'roller')
+      roller.style.display = 'block'
       roller.style.lineHeight = step
       roller.style.willChange = 'transform'
 
@@ -310,38 +293,25 @@ function initNumberOdometer() {
       const endDigit = parseInt(seg.char, 10)
       const targetPos = endDigit > startDigit ? endDigit : 10 + endDigit
 
-      // Store startDigit and isReveal in the roller entry so fromTo callers
-      // can compute the explicit start position without re-reading the DOM.
       rollers.push({ roller, targetPos, startDigit, isReveal })
       if (isReveal) revealEls.push(mask)
     })
 
-    // rawStep: exact line-height px from computedStyle, read after DOM insertion.
-    // Used only by Safari for physical-pixel-snapped transforms.
-    const rawStep = getRawStepPx(el)
-
-    // Set initial visual positions (before ScrollTrigger fires).
-    // fromTo will re-assert these at animation start, but we need them
-    // visually correct before that point.
+    // Posicionamiento inicial usando yPercent
+    const cellPercent = 100 / totalCells
     rollers.forEach(({ roller, startDigit, isReveal }) => {
-      if (isSafari) {
-        gsap.set(roller, { y: snapPx((isReveal ? 1 : -startDigit) * rawStep) + 'px' })
-      } else {
-        gsap.set(roller, { y: isReveal ? step + 'em' : -startDigit * step + 'em' })
-      }
+      const fromPerc = isReveal ? -cellPercent : (startDigit * cellPercent)
+      gsap.set(roller, { yPercent: -fromPerc })
     })
 
-    return { rollers, revealEls, rawStep }
+    return { rollers, revealEls }
   }
 
   function cleanupElement(el, originalText) {
     el.style.overflow = ''
     el.style.height = ''
-
-    // Remove rollers, set final digit, clear inline bloat (but preserve width)
     const digits = [...originalText].filter(c => /\d/.test(c))
     let di = 0
-
     el.querySelectorAll('[data-odometer-part="mask"]').forEach(mask => {
       const roller = mask.querySelector('[data-odometer-part="roller"]')
       if (roller) roller.remove()
@@ -349,7 +319,6 @@ function initNumberOdometer() {
       mask.style.opacity = ''
       mask.style.overflow = ''
     })
-
     el.querySelectorAll('[data-odometer-part="static"]').forEach(stat => {
       stat.style.opacity = ''
     })
@@ -357,17 +326,13 @@ function initNumberOdometer() {
 
   function recalcOnResize() {
     document.querySelectorAll('[data-odometer-element]').forEach(el => {
-      // Force-complete any running programmatic animation
       const running = activeTweens.get(el)
       if (running) {
         running.progress(1)
         activeTweens.delete(el)
       }
-
       const hasRollers = el.querySelector('[data-odometer-part="roller"]')
-
       if (hasRollers) {
-        // Pre-triggered: recalculate step-based inline styles
         const step = getLineHeightRatio(el)
         el.querySelectorAll('[data-odometer-part="mask"]').forEach(mask => {
           mask.style.height = step + 'em'
@@ -380,7 +345,6 @@ function initNumberOdometer() {
           stat.style.lineHeight = step
         })
       }
-      // Completed elements: width is em-based, scales automatically, don't touch
     })
     ScrollTrigger.refresh()
   }
