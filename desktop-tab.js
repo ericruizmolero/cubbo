@@ -11,10 +11,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const iconPause = document.querySelector(".client_tabs-playpause .icon-pause");
   const progressLine = document.querySelector(".client_active-tab-line");
 
-  // Selectores de flechas basados en tu HTML
-  const arrowPrev = document.querySelector(".client_tabs-prev");
-  const arrowNext = document.querySelector(".client_tabs-next");
-
   let isPaused = false;
   let linePausedAt = 0;
   const timers = {};
@@ -71,7 +67,6 @@ document.addEventListener("DOMContentLoaded", function () {
       const next = current.nextElementSibling || menu.firstChild;
       
       if (next) {
-        // Disparo manual para evitar scroll en Safari
         next.dispatchEvent(new MouseEvent('click', {
           view: window,
           bubbles: true,
@@ -96,7 +91,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    // Listener para los tabs individuales
+    // Listener para los tabs
     tabs.forEach(tab => {
       tab.addEventListener("click", (e) => {
         if (pauseOnHover && menu.matches(":hover") && e.isTrusted) return;
@@ -104,13 +99,11 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
 
-    // Listener para las flechas (basado en tus clases)
-    [arrowPrev, arrowNext].forEach(arrow => {
-      if (arrow) {
-        arrow.addEventListener("click", () => {
-          // Pequeño delay para que Webflow cambie la pestaña antes de reiniciar la línea
-          setTimeout(() => resetTimer(), 10);
-        });
+    // CORRECCIÓN CLAVE: Listener global para las flechas dentro del scope del menú
+    // Buscamos cualquier clic en el documento y filtramos si viene de las flechas
+    document.addEventListener("click", (e) => {
+      if (e.target.closest(".client_tabs-prev") || e.target.closest(".client_tabs-next")) {
+        resetTimer();
       }
     });
 
@@ -133,15 +126,13 @@ document.addEventListener("DOMContentLoaded", function () {
     startLine(interval);
   });
 
-  // Play / Pause toggle logic
   if (playPauseBtn) {
     playPauseBtn.style.pointerEvents = "all";
     playPauseBtn.style.cursor = "pointer";
-
     const clickTarget = arrowWrap || playPauseBtn;
 
     clickTarget.addEventListener("click", (e) => {
-      // Solo actuar si se clica el botón de play/pause específicamente
+      // Solo pausar si se hace click en el botón playpause, no en las flechas
       if (!e.target.closest(".client_tabs-playpause")) return;
       if (!isDesktop()) return;
 
