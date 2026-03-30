@@ -4,12 +4,11 @@ function initNumberOdometer() {
   const initFlag = 'data-odometer-initialized'
   const activeTweens = new WeakMap()
 
-  // Safari (includes iOS) snaps transforms to physical pixels, causing a visible
-  // jump at animation end when em-based values don't land on the pixel grid.
-  // Fix: on Safari only, convert each final transform position to px and snap it
-  // to the physical pixel grid with snapPx().
-  // We snap the final POSITION (targetPos * rawStep), never the step itself —
-  // rounding the step accumulates error per digit (e.g. targetPos=10 → 10× error).
+  // Safari/iOS snaps transforms to physical pixels. Using tl.to() means GSAP reads
+  // the current y value at ScrollTrigger fire time — which can differ from what
+  // gsap.set() wrote at init time, causing mid-animation overshoot on iOS.
+  // Fix: use tl.fromTo() so GSAP never reads anything — start and end are both
+  // explicit, and both are snapped to the physical pixel grid on Safari.
   const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
   const dpr = window.devicePixelRatio || 1
   const snapPx = val => Math.round(val * dpr) / dpr
@@ -91,16 +90,24 @@ function initNumberOdometer() {
         }, offset)
       })
 
-      rollers.forEach(({ roller, targetPos }, digitIdx) => {
+      rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
         const reversedIdx = rollers.length - 1 - digitIdx
-        tl.to(roller, {
-          y: isSafari
-            ? snapPx(-targetPos * rawStep) + 'px'
-            : -targetPos * step + 'em',
-          duration,
-          ease: defaults.ease,
-          force3D: true
-        }, offset + reversedIdx * defaults.digitStagger)
+
+        // fromTo: GSAP never reads the current value — both endpoints are explicit.
+        // This prevents the mid-animation overshoot on iOS Safari where tl.to()
+        // would read a stale/misinterpreted y at ScrollTrigger fire time.
+        const fromY = isSafari
+          ? snapPx((isReveal ? 1 : -startDigit) * rawStep) + 'px'
+          : (isReveal ? step : -startDigit * step) + 'em'
+        const toY = isSafari
+          ? snapPx(-targetPos * rawStep) + 'px'
+          : -targetPos * step + 'em'
+
+        tl.fromTo(roller,
+          { y: fromY },
+          { y: toY, duration, ease: defaults.ease, force3D: true },
+          offset + reversedIdx * defaults.digitStagger
+        )
       })
     })
   })
@@ -171,17 +178,22 @@ function initNumberOdometer() {
       }
     })
 
-    // Roll digits
-    rollers.forEach(({ roller, targetPos }, digitIdx) => {
+    // Roll digits — fromTo for the same reason as scroll-triggered groups
+    rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
       const reversedIdx = rollers.length - 1 - digitIdx
-      tl.to(roller, {
-        y: isSafari
-          ? snapPx(-targetPos * rawStep) + 'px'
-          : -targetPos * step + 'em',
-        duration,
-        ease,
-        force3D: true
-      }, reversedIdx * defaults.digitStagger)
+
+      const fromY = isSafari
+        ? snapPx((isReveal ? 1 : -startDigit) * rawStep) + 'px'
+        : (isReveal ? step : -startDigit * step) + 'em'
+      const toY = isSafari
+        ? snapPx(-targetPos * rawStep) + 'px'
+        : -targetPos * step + 'em'
+
+      tl.fromTo(roller,
+        { y: fromY },
+        { y: toY, duration, ease, force3D: true },
+        reversedIdx * defaults.digitStagger
+      )
     })
   }
 
@@ -193,9 +205,8 @@ function initNumberOdometer() {
     return parseFloat(lh) / parseFloat(cs.fontSize)
   }
 
-  // Returns the line-height as an exact px float from computedStyle.
-  // Used only by Safari. More reliable than getBoundingClientRect() on the mask,
-  // which includes padding (0.05em) and shifts with different mobile font sizes.
+  // Returns line-height in exact px from computedStyle.
+  // More reliable than getBoundingClientRect() on masks (which includes padding).
   function getRawStepPx(el) {
     const cs = getComputedStyle(el)
     const lh = cs.lineHeight
@@ -293,25 +304,28 @@ function initNumberOdometer() {
       roller.textContent = digits.join('\n')
       mask.appendChild(roller)
       el.appendChild(mask)
+
       const startDigit = seg.startDigit || 0
       const isReveal = grow && seg.hidden
-      // Defer gsap.set until after rawStep is measured below
       const endDigit = parseInt(seg.char, 10)
       const targetPos = endDigit > startDigit ? endDigit : 10 + endDigit
+
+      // Store startDigit and isReveal in the roller entry so fromTo callers
+      // can compute the explicit start position without re-reading the DOM.
       rollers.push({ roller, targetPos, startDigit, isReveal })
       if (isReveal) revealEls.push(mask)
     })
 
-    // rawStep: line-height in px, read after DOM insertion so computedStyle is final.
-    // Used only for Safari px-snapped transforms.
+    // rawStep: exact line-height px from computedStyle, read after DOM insertion.
+    // Used only by Safari for physical-pixel-snapped transforms.
     const rawStep = getRawStepPx(el)
 
-    // Set initial roller positions — must use the same unit as the animation target.
-    // If start=em and end=px, GSAP interpolates across unit types mid-animation,
-    // causing the roller to visibly overshoot and snap on Safari/iOS.
+    // Set initial visual positions (before ScrollTrigger fires).
+    // fromTo will re-assert these at animation start, but we need them
+    // visually correct before that point.
     rollers.forEach(({ roller, startDigit, isReveal }) => {
       if (isSafari) {
-        gsap.set(roller, { y: isReveal ? snapPx(rawStep) + 'px' : snapPx(-startDigit * rawStep) + 'px' })
+        gsap.set(roller, { y: snapPx((isReveal ? 1 : -startDigit) * rawStep) + 'px' })
       } else {
         gsap.set(roller, { y: isReveal ? step + 'em' : -startDigit * step + 'em' })
       }
