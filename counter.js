@@ -4,15 +4,6 @@ function initNumberOdometer() {
   const initFlag = 'data-odometer-initialized'
   const activeTweens = new WeakMap()
 
-  // Safari (includes iOS) needs DPR-snapped px transforms; Chrome works correctly with em
-  const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
-  // Round a CSS px value to the nearest physical pixel to prevent Safari sub-pixel snapping.
-  // Applied to each final POSITION individually — never to the step — to avoid accumulated error.
-  // Example of the bug: step=28.8, dpr=3 → rounded step=28.667, targetPos=10 → 10×28.667=286.67px
-  // but correct position is 10×28.8=288px → 4 physical pixels off. Rounding the position avoids this.
-  const dpr = window.devicePixelRatio || 1
-  const snapPx = (val) => Math.round(val * dpr) / dpr
-
   // Configuration
   const defaults = {
     duration: 1,
@@ -43,14 +34,14 @@ function initNumberOdometer() {
       const hasExplicitStart = el.hasAttribute('data-odometer-start')
       const startValue = parseFloat(el.getAttribute('data-odometer-start')) || 0
       const duration = parseFloat(el.getAttribute('data-odometer-duration')) || defaults.duration
-      const stepRatio = getLineHeightRatio(el)
+      const step = getLineHeightRatio(el)
 
       let segments = parseSegments(originalText)
       segments = mapStartDigits(segments, startValue)
       segments = markHiddenSegments(segments, startValue)
 
       const grow = shouldGrow(el, hasExplicitStart, startValue, segments)
-      const { rollers, revealEls, pxStep, step } = buildRollerDOM(el, segments, stepRatio, grow)
+      const { rollers, revealEls } = buildRollerDOM(el, segments, step, grow)
 
       const fontSize = parseFloat(getComputedStyle(el).fontSize)
       const revealData = revealEls.map(revealEl => {
@@ -59,7 +50,7 @@ function initNumberOdometer() {
         return { el: revealEl, widthEm }
       })
 
-      return { el, rollers, duration, step, pxStep, revealData, originalText }
+      return { el, rollers, duration, step, revealData, originalText }
     })
 
     const ordered = applyStaggerOrder(elementData, staggerOrder)
@@ -71,14 +62,14 @@ function initNumberOdometer() {
         once: true
       },
       onComplete() {
-        elementData.forEach(({ el, originalText }) => {
+        elementData.forEach(({ el, originalText, step }) => {
           cleanupElement(el, originalText)
         })
       }
     })
 
     ordered.forEach((data, orderIdx) => {
-      const { rollers, duration, step, rawStep, revealData } = data
+      const { rollers, duration, step, revealData } = data
       const offset = orderIdx * elementStagger
 
       revealData.forEach(({ el, widthEm }) => {
@@ -93,7 +84,7 @@ function initNumberOdometer() {
       rollers.forEach(({ roller, targetPos }, digitIdx) => {
         const reversedIdx = rollers.length - 1 - digitIdx
         tl.to(roller, {
-          y: isSafari ? snapPx(-targetPos * rawStep) + 'px' : -targetPos * step + 'em',
+          y: -targetPos * step + 'em',
           duration,
           ease: defaults.ease,
           force3D: true
@@ -109,7 +100,7 @@ function initNumberOdometer() {
 
     const duration = options.duration || defaults.duration
     const ease = options.ease || defaults.ease
-    const stepRatio = getLineHeightRatio(el)
+    const step = getLineHeightRatio(el)
 
     // Kill any running animation and clear its inline style locks
     const existing = activeTweens.get(el)
@@ -133,8 +124,7 @@ function initNumberOdometer() {
     let segments = parseSegments(newText)
     segments = mapStartDigits(segments, startValue)
     segments = markHiddenSegments(segments, startValue)
-
-    const { rollers, revealEls, rawStep, step } = buildRollerDOM(el, segments, stepRatio, true)
+    const { rollers, revealEls } = buildRollerDOM(el, segments, step, true)
 
     // Measure new natural width (in em)
     const newWidthEm = el.getBoundingClientRect().width / fontSize
@@ -173,7 +163,7 @@ function initNumberOdometer() {
     rollers.forEach(({ roller, targetPos }, digitIdx) => {
       const reversedIdx = rollers.length - 1 - digitIdx
       tl.to(roller, {
-        y: isSafari ? snapPx(-targetPos * rawStep) + 'px' : -targetPos * step + 'em',
+        y: -targetPos * step + 'em',
         duration,
         ease,
         force3D: true
@@ -248,8 +238,6 @@ function initNumberOdometer() {
     const rollers = []
     const revealEls = []
     const totalCells = 10 * defaults.digitCycles
-    const pendingRollers = []
-
     segments.forEach(seg => {
       if (seg.type === 'static') {
         const span = document.createElement('span')
@@ -271,7 +259,6 @@ function initNumberOdometer() {
       const roller = document.createElement('span')
       roller.setAttribute('data-odometer-part', 'roller')
       roller.style.lineHeight = step
-      roller.style.willChange = 'transform'
 
       const digits = []
       for (let d = 0; d < totalCells; d++) {
@@ -280,41 +267,22 @@ function initNumberOdometer() {
       roller.textContent = digits.join('\n')
       mask.appendChild(roller)
       el.appendChild(mask)
-
-      pendingRollers.push({ mask, roller, seg })
-    })
-
-    // Use the browser's own computed line-height value in px as the roller cell step.
-    // Keep it as an exact float — rounding happens per-position in the callers, not here.
-    const cs = getComputedStyle(el)
-    const computedLh = cs.lineHeight
-    const fontSize = parseFloat(cs.fontSize)
-    const rawStep = computedLh !== 'normal' ? parseFloat(computedLh) : fontSize * 1.2
-
-    pendingRollers.forEach(({ roller, seg }) => {
       const startDigit = seg.startDigit || 0
       const isReveal = grow && seg.hidden
-
-      if (isSafari) {
-        // Snap each initial position to the physical pixel grid individually
-        gsap.set(roller, { y: isReveal ? snapPx(rawStep) + 'px' : snapPx(-startDigit * rawStep) + 'px' })
-      } else {
-        gsap.set(roller, { y: isReveal ? step + 'em' : -startDigit * step + 'em' })
-      }
-
+      gsap.set(roller, { y: isReveal ? step + 'em' : -startDigit * step + 'em' })
       const endDigit = parseInt(seg.char, 10)
       const targetPos = endDigit > startDigit ? endDigit : 10 + endDigit
       rollers.push({ roller, targetPos })
-      if (isReveal) revealEls.push(pendingRollers.find(p => p.roller === roller).mask)
+      if (isReveal) revealEls.push(mask)
     })
-
-    return { rollers, revealEls, rawStep, step }
+    return { rollers, revealEls }
   }
 
   function cleanupElement(el, originalText) {
     el.style.overflow = ''
     el.style.height = ''
 
+    // Remove rollers, set final digit, clear inline bloat (but preserve width)
     const digits = [...originalText].filter(c => /\d/.test(c))
     let di = 0
 
@@ -333,6 +301,7 @@ function initNumberOdometer() {
 
   function recalcOnResize() {
     document.querySelectorAll('[data-odometer-element]').forEach(el => {
+      // Force-complete any running programmatic animation
       const running = activeTweens.get(el)
       if (running) {
         running.progress(1)
@@ -342,6 +311,7 @@ function initNumberOdometer() {
       const hasRollers = el.querySelector('[data-odometer-part="roller"]')
 
       if (hasRollers) {
+        // Pre-triggered: recalculate step-based inline styles
         const step = getLineHeightRatio(el)
         el.querySelectorAll('[data-odometer-part="mask"]').forEach(mask => {
           mask.style.height = step + 'em'
@@ -354,6 +324,7 @@ function initNumberOdometer() {
           stat.style.lineHeight = step
         })
       }
+      // Completed elements: width is em-based, scales automatically, don't touch
     })
     ScrollTrigger.refresh()
   }
