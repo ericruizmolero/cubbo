@@ -22,9 +22,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // ── Init Swiper ───────────────────────────────────────────
   const swiper = new Swiper(".client_swiper", {
     loop:  true,
-    speed: 500,
+    speed: 800,
     autoplay: {
-      delay:                3000,
+      delay:                8000,
       disableOnInteraction: false,
     },
   });
