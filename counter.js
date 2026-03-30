@@ -288,8 +288,10 @@ function initNumberOdometer() {
     // Fall back to a rounded em-based value if the element is off-screen (height = 0).
     const fontSize = parseFloat(getComputedStyle(el).fontSize)
     const firstMask = pendingRollers[0]?.mask
-   const measuredPx = firstMask ? firstMask.getBoundingClientRect().height : 0
-const pxStep = measuredPx > 0 ? measuredPx : fontSize * step
+  const measuredPx = firstMask ? firstMask.getBoundingClientRect().height : 0
+  const rawStep = measuredPx > 0 ? measuredPx : fontSize * step
+  const dpr = window.devicePixelRatio || 1
+  const pxStep = Math.round(rawStep * dpr) / dpr
 
     // FIX: set initial y in px (not em) for pixel-perfect alignment
     pendingRollers.forEach(({ mask, roller, seg }) => {
