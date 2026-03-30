@@ -1,23 +1,18 @@
-// Resource: Number Odometer Optimized for iOS Safari
 function initNumberOdometer() {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const initFlag = 'data-odometer-initialized'
   const activeTweens = new WeakMap()
 
-  // Configuration
   const defaults = {
-    duration: 1,
-    ease: 'power3.out',
+    duration: 1.2, // Un poco más de tiempo ayuda a la fluidez
+    ease: 'power4.out', // Ease más suave para odómetros
     elementStagger: 0.1,
-    digitStagger: 0.04,
+    digitStagger: 0.05,
     revealDuration: 0.5,
-    revealEase: 'power2.out',
-    triggerStart: 'top 80%',
-    staggerOrder: 'left',
-    digitCycles: 2 // 10 dígitos por ciclo
+    triggerStart: 'top 85%',
+    digitCycles: 2
   }
 
-  // Scroll-triggered groups
   document.querySelectorAll('[data-odometer-group]').forEach(group => {
     if (group.hasAttribute(initFlag)) return
     group.setAttribute(initFlag, '')
@@ -25,13 +20,12 @@ function initNumberOdometer() {
     const elements = Array.from(group.querySelectorAll('[data-odometer-element]'))
     if (!elements.length || prefersReducedMotion) return
 
-    const staggerOrder = group.getAttribute('data-odometer-stagger-order') || defaults.staggerOrder
+    const staggerOrder = group.getAttribute('data-odometer-stagger-order') || 'left'
     const triggerStart = group.getAttribute('data-odometer-trigger-start') || defaults.triggerStart
     const elementStagger = parseFloat(group.getAttribute('data-odometer-stagger')) || defaults.elementStagger
 
     const elementData = elements.map(el => {
       const originalText = el.textContent.trim()
-      const hasExplicitStart = el.hasAttribute('data-odometer-start')
       const startValue = parseFloat(el.getAttribute('data-odometer-start')) || 0
       const duration = parseFloat(el.getAttribute('data-odometer-duration')) || defaults.duration
       const step = getLineHeightRatio(el)
@@ -40,8 +34,8 @@ function initNumberOdometer() {
       segments = mapStartDigits(segments, startValue)
       segments = markHiddenSegments(segments, startValue)
 
-      const grow = shouldGrow(el, hasExplicitStart, startValue, segments)
-      const { rollers, revealEls } = buildRollerDOM(el, segments, step, grow)
+      const grow = el.hasAttribute('data-odometer-grow') ? el.getAttribute('data-odometer-grow') !== 'false' : false
+      const { rollers, revealEls, singleDigitHeight } = buildRollerDOM(el, segments, step, grow)
 
       const fontSize = parseFloat(getComputedStyle(el).fontSize)
       const revealData = revealEls.map(revealEl => {
@@ -50,7 +44,7 @@ function initNumberOdometer() {
         return { el: revealEl, widthEm }
       })
 
-      return { el, rollers, duration, step, revealData, originalText }
+      return { el, rollers, duration, revealData, originalText, singleDigitHeight }
     })
 
     const ordered = applyStaggerOrder(elementData, staggerOrder)
@@ -62,14 +56,12 @@ function initNumberOdometer() {
         once: true
       },
       onComplete() {
-        elementData.forEach(({ el, originalText }) => {
-          cleanupElement(el, originalText)
-        })
+        elementData.forEach(({ el, originalText }) => cleanupElement(el, originalText))
       }
     })
 
     ordered.forEach((data, orderIdx) => {
-      const { rollers, duration, revealData } = data
+      const { rollers, duration, revealData, singleDigitHeight } = data
       const offset = orderIdx * elementStagger
 
       revealData.forEach(({ el, widthEm }) => {
@@ -77,28 +69,28 @@ function initNumberOdometer() {
           width: widthEm + 'em',
           opacity: 1,
           duration: defaults.revealDuration,
-          ease: defaults.revealEase
+          ease: 'power2.out'
         }, offset)
       })
-
-      const totalCells = 10 * defaults.digitCycles
-      const cellPercent = 100 / totalCells
 
       rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
         const reversedIdx = rollers.length - 1 - digitIdx
         
-        // Usamos yPercent para evitar errores de redondeo de subpíxeles en iOS
-        const fromPerc = isReveal ? -cellPercent : (startDigit * cellPercent)
-        const toPerc = targetPos * cellPercent
+        // Calculamos la posición exacta en píxeles basada en la altura real renderizada
+        const fromY = isReveal ? singleDigitHeight : -(startDigit * singleDigitHeight)
+        const toY = -(targetPos * singleDigitHeight)
 
         tl.fromTo(roller,
-          { yPercent: -fromPerc },
+          { y: fromY },
           { 
-            yPercent: -toPerc, 
+            y: toY, 
             duration, 
             ease: defaults.ease, 
+            // Crucial para el lag: forzar GPU y suavizado
             force3D: true,
-            roundProps: "yPercent" // Forza a GSAP a usar valores enteros de porcentaje
+            rotationZ: 0.01, 
+            z: 0.01,
+            clearProps: "willChange" 
           },
           offset + reversedIdx * defaults.digitStagger
         )
@@ -106,110 +98,23 @@ function initNumberOdometer() {
     })
   })
 
-  // Programmatic update
-  return function updateOdometer(el, newText, options = {}) {
-    const currentText = el.textContent.trim()
-    if (currentText === newText) return
-
-    const duration = options.duration || defaults.duration
-    const ease = options.ease || defaults.ease
-    const step = getLineHeightRatio(el)
-
-    const existing = activeTweens.get(el)
-    if (existing) {
-      existing.kill()
-      gsap.set(el, { clearProps: 'width,overflow' })
-    }
-
-    const fontSize = parseFloat(getComputedStyle(el).fontSize)
-    const oldWidthEm = el.getBoundingClientRect().width / fontSize
-
-    const startSegments = parseSegments(currentText)
-    const startDigitsStr = startSegments.filter(s => s.type === 'digit').map(s => s.char).join('')
-    const startValue = parseInt(startDigitsStr, 10) || 0
-
-    let segments = parseSegments(newText)
-    segments = mapStartDigits(segments, startValue)
-    segments = markHiddenSegments(segments, startValue)
-    const { rollers, revealEls } = buildRollerDOM(el, segments, step, true)
-
-    const newWidthEm = el.getBoundingClientRect().width / fontSize
-    const widthChanged = Math.abs(oldWidthEm - newWidthEm) > 0.01
-
-    if (widthChanged) {
-      gsap.set(el, { width: oldWidthEm + 'em', overflow: 'hidden' })
-    }
-
-    const tl = gsap.timeline({
-      onComplete() {
-        cleanupElement(el, newText)
-        activeTweens.delete(el)
-      }
-    })
-    activeTweens.set(el, tl)
-
-    if (widthChanged) {
-      tl.to(el, {
-        width: newWidthEm + 'em',
-        duration: defaults.revealDuration,
-        ease: defaults.revealEase
-      }, 0)
-    }
-
-    revealEls.forEach(revealEl => {
-      if (revealEl.getAttribute('data-odometer-part') === 'static') {
-        tl.to(revealEl, { opacity: 1, duration: 0.2 }, 0)
-      }
-    })
-
-    const totalCells = 10 * defaults.digitCycles
-    const cellPercent = 100 / totalCells
-
-    rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
-      const reversedIdx = rollers.length - 1 - digitIdx
-      const fromPerc = isReveal ? -cellPercent : (startDigit * cellPercent)
-      const toPerc = targetPos * cellPercent
-
-      tl.fromTo(roller,
-        { yPercent: -fromPerc },
-        { 
-          yPercent: -toPerc, 
-          duration, 
-          ease, 
-          force3D: true,
-          roundProps: "yPercent"
-        },
-        reversedIdx * defaults.digitStagger
-      )
-    })
-  }
-
-  // Helpers
+  // Helpers internos
   function getLineHeightRatio(el) {
     const cs = getComputedStyle(el)
-    const lh = cs.lineHeight
+    let lh = cs.lineHeight
     if (lh === 'normal') return 1.2
     return parseFloat(lh) / parseFloat(cs.fontSize)
   }
 
   function parseSegments(text) {
-    return [...text].map(char => ({
-      type: /\d/.test(char) ? 'digit' : 'static',
-      char
-    }))
+    return [...text].map(char => ({ type: /\d/.test(char) ? 'digit' : 'static', char }))
   }
 
   function mapStartDigits(segments, startValue) {
     const digitSlots = segments.filter(s => s.type === 'digit')
-    const padded = String(Math.floor(Math.abs(startValue)))
-      .padStart(digitSlots.length, '0')
-      .slice(-digitSlots.length)
+    const padded = String(Math.floor(Math.abs(startValue))).padStart(digitSlots.length, '0').slice(-digitSlots.length)
     let di = 0
-    return segments.map(s =>
-      s.type === 'digit'
-        ? { ...s, startDigit: parseInt(padded[di++], 10) }
-        : s
-    )
+    return segments.map(s => s.type === 'digit' ? { ...s, startDigit: parseInt(padded[di++], 10) } : s)
   }
 
   function markHiddenSegments(segments, startValue) {
@@ -218,9 +123,7 @@ function initNumberOdometer() {
     const startDigitCount = absStart === 0 ? 1 : String(absStart).length
     const leadingZeros = Math.max(0, totalDigits - startDigitCount)
     if (leadingZeros === 0) return segments
-    let digitsSeen = 0
-    let firstDigitSeen = false
-    let prevDigitHidden = false
+    let digitsSeen = 0, firstDigitSeen = false, prevDigitHidden = false
     return segments.map(seg => {
       if (seg.type === 'digit') {
         firstDigitSeen = true
@@ -229,154 +132,84 @@ function initNumberOdometer() {
         digitsSeen++
         return { ...seg, hidden }
       }
-      const hidden = firstDigitSeen && prevDigitHidden
-      return { ...seg, hidden }
+      return { ...seg, hidden: firstDigitSeen && prevDigitHidden }
     })
-  }
-
-  function shouldGrow(el, hasExplicitStart, startValue, segments) {
-    if (el.hasAttribute('data-odometer-grow')) {
-      return el.getAttribute('data-odometer-grow') !== 'false'
-    }
-    if (!hasExplicitStart) return false
-    const absStart = Math.floor(Math.abs(startValue))
-    const startDigitCount = absStart === 0 ? 1 : String(absStart).length
-    const endDigitCount = segments.filter(s => s.type === 'digit').length
-    return startDigitCount < endDigitCount
   }
 
   function buildRollerDOM(el, segments, step, grow) {
     el.innerHTML = ''
-    el.style.height = ''
     const rollers = []
     const revealEls = []
     const totalCells = 10 * defaults.digitCycles
 
     segments.forEach(seg => {
+      const span = document.createElement('span')
+      span.style.display = 'inline-block'
+      span.style.position = 'relative'
+      span.style.height = step + 'em'
+      span.style.lineHeight = step
+
       if (seg.type === 'static') {
-        const span = document.createElement('span')
-        span.setAttribute('data-odometer-part', 'static')
-        span.style.display = 'inline-block'
-        span.style.height = step + 'em'
-        span.style.lineHeight = step
         span.textContent = seg.char
         el.appendChild(span)
         if (grow && seg.hidden) {
           gsap.set(span, { opacity: 0 })
           revealEls.push(span)
         }
-        return
+      } else {
+        span.style.overflow = 'hidden'
+        span.setAttribute('data-odometer-part', 'mask')
+        
+        const roller = document.createElement('span')
+        roller.style.display = 'block'
+        roller.style.whiteSpace = 'pre'
+        roller.style.willChange = 'transform'
+        // Mejora de rendimiento para Safari
+        roller.style.webkitFontSmoothing = 'antialiased'
+        
+        const digits = []
+        for (let d = 0; d < totalCells; d++) digits.push(d % 10)
+        roller.textContent = digits.join('\n')
+        
+        span.appendChild(roller)
+        el.appendChild(span)
+
+        const startDigit = seg.startDigit || 0
+        const isReveal = grow && seg.hidden
+        const endDigit = parseInt(seg.char, 10)
+        const targetPos = endDigit > startDigit ? endDigit : 10 + endDigit
+
+        rollers.push({ roller, targetPos, startDigit, isReveal })
+        if (isReveal) revealEls.push(span)
       }
-      const mask = document.createElement('span')
-      mask.setAttribute('data-odometer-part', 'mask')
-      mask.style.display = 'inline-block'
-      mask.style.overflow = 'hidden'
-      mask.style.height = step + 'em'
-      mask.style.lineHeight = step
-      
-      const roller = document.createElement('span')
-      roller.setAttribute('data-odometer-part', 'roller')
-      roller.style.display = 'block'
-      roller.style.lineHeight = step
-      roller.style.willChange = 'transform'
-
-      const digits = []
-      for (let d = 0; d < totalCells; d++) {
-        digits.push(d % 10)
-      }
-      roller.textContent = digits.join('\n')
-      mask.appendChild(roller)
-      el.appendChild(mask)
-
-      const startDigit = seg.startDigit || 0
-      const isReveal = grow && seg.hidden
-      const endDigit = parseInt(seg.char, 10)
-      const targetPos = endDigit > startDigit ? endDigit : 10 + endDigit
-
-      rollers.push({ roller, targetPos, startDigit, isReveal })
-      if (isReveal) revealEls.push(mask)
     })
 
-    // Posicionamiento inicial usando yPercent
-    const cellPercent = 100 / totalCells
+    // Medimos la altura real de un dígito para el cálculo de píxeles
+    const firstRoller = el.querySelector('span[style*="overflow: hidden"]');
+    const singleDigitHeight = firstRoller ? firstRoller.offsetHeight : 0;
+
     rollers.forEach(({ roller, startDigit, isReveal }) => {
-      const fromPerc = isReveal ? -cellPercent : (startDigit * cellPercent)
-      gsap.set(roller, { yPercent: -fromPerc })
+      const initialY = isReveal ? singleDigitHeight : -(startDigit * singleDigitHeight)
+      gsap.set(roller, { y: initialY })
     })
 
-    return { rollers, revealEls }
+    return { rollers, revealEls, singleDigitHeight }
   }
 
   function cleanupElement(el, originalText) {
-    el.style.overflow = ''
-    el.style.height = ''
     const digits = [...originalText].filter(c => /\d/.test(c))
     let di = 0
     el.querySelectorAll('[data-odometer-part="mask"]').forEach(mask => {
-      const roller = mask.querySelector('[data-odometer-part="roller"]')
-      if (roller) roller.remove()
-      mask.textContent = digits[di++] || ''
-      mask.style.opacity = ''
+      mask.innerHTML = digits[di++] || ''
       mask.style.overflow = ''
     })
-    el.querySelectorAll('[data-odometer-part="static"]').forEach(stat => {
-      stat.style.opacity = ''
-    })
   }
-
-  function recalcOnResize() {
-    document.querySelectorAll('[data-odometer-element]').forEach(el => {
-      const running = activeTweens.get(el)
-      if (running) {
-        running.progress(1)
-        activeTweens.delete(el)
-      }
-      const hasRollers = el.querySelector('[data-odometer-part="roller"]')
-      if (hasRollers) {
-        const step = getLineHeightRatio(el)
-        el.querySelectorAll('[data-odometer-part="mask"]').forEach(mask => {
-          mask.style.height = step + 'em'
-          mask.style.lineHeight = step
-        })
-        el.querySelectorAll('[data-odometer-part="roller"]').forEach(roller => {
-          roller.style.lineHeight = step
-        })
-        el.querySelectorAll('[data-odometer-part="static"]').forEach(stat => {
-          stat.style.lineHeight = step
-        })
-      }
-    })
-    ScrollTrigger.refresh()
-  }
-
-  let resizeTimer
-  let lastWidth = window.innerWidth
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer)
-    resizeTimer = setTimeout(() => {
-      if (window.innerWidth === lastWidth) return
-      lastWidth = window.innerWidth
-      recalcOnResize()
-    }, 250)
-  })
 
   function applyStaggerOrder(items, order) {
-    const arr = [...items]
-    if (order === 'right') return arr.reverse()
-    if (order === 'random') return shuffleArray(arr)
-    return arr
-  }
-
-  function shuffleArray(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    return arr
+    if (order === 'right') return [...items].reverse()
+    if (order === 'random') return [...items].sort(() => Math.random() - 0.5)
+    return items
   }
 }
 
-// Initialize Number Odometer
-document.addEventListener("DOMContentLoaded", () => {
-  initNumberOdometer();
-})
+document.addEventListener("DOMContentLoaded", initNumberOdometer);
