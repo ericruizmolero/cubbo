@@ -4,11 +4,11 @@ function initNumberOdometer() {
   const activeTweens = new WeakMap()
 
   const defaults = {
-    duration: 1.2, // Un poco más de tiempo ayuda a la fluidez
-    ease: 'power4.out', // Ease más suave para odómetros
+    duration: 1.4, 
+    ease: 'power4.out',
     elementStagger: 0.1,
     digitStagger: 0.05,
-    revealDuration: 0.5,
+    revealDuration: 0.4,
     triggerStart: 'top 85%',
     digitCycles: 2
   }
@@ -20,52 +20,49 @@ function initNumberOdometer() {
     const elements = Array.from(group.querySelectorAll('[data-odometer-element]'))
     if (!elements.length || prefersReducedMotion) return
 
-    const staggerOrder = group.getAttribute('data-odometer-stagger-order') || 'left'
-    const triggerStart = group.getAttribute('data-odometer-trigger-start') || defaults.triggerStart
-    const elementStagger = parseFloat(group.getAttribute('data-odometer-stagger')) || defaults.elementStagger
-
     const elementData = elements.map(el => {
       const originalText = el.textContent.trim()
       const startValue = parseFloat(el.getAttribute('data-odometer-start')) || 0
       const duration = parseFloat(el.getAttribute('data-odometer-duration')) || defaults.duration
-      const step = getLineHeightRatio(el)
-
+      
+      // PASO 1: Calcular altura exacta y fijarla
+      const fontSize = parseFloat(getComputedStyle(el).fontSize)
+      const lhRatio = getLineHeightRatio(el)
+      const exactPxHeight = Math.round(fontSize * lhRatio)
+      
       let segments = parseSegments(originalText)
       segments = mapStartDigits(segments, startValue)
       segments = markHiddenSegments(segments, startValue)
 
       const grow = el.hasAttribute('data-odometer-grow') ? el.getAttribute('data-odometer-grow') !== 'false' : false
-      const { rollers, revealEls, singleDigitHeight } = buildRollerDOM(el, segments, step, grow)
+      
+      // PASO 2: Construir DOM con alturas fijas en PX
+      const { rollers, revealEls } = buildRollerDOM(el, segments, exactPxHeight, grow)
 
-      const fontSize = parseFloat(getComputedStyle(el).fontSize)
       const revealData = revealEls.map(revealEl => {
         const widthEm = revealEl.offsetWidth / fontSize
         gsap.set(revealEl, { width: 0, overflow: 'hidden' })
         return { el: revealEl, widthEm }
       })
 
-      return { el, rollers, duration, revealData, originalText, singleDigitHeight }
+      return { el, rollers, duration, revealData, originalText, exactPxHeight }
     })
-
-    const ordered = applyStaggerOrder(elementData, staggerOrder)
 
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: group,
-        start: triggerStart,
+        start: group.getAttribute('data-odometer-trigger-start') || defaults.triggerStart,
         once: true
-      },
-      onComplete() {
-        elementData.forEach(({ el, originalText }) => cleanupElement(el, originalText))
       }
     })
 
-    ordered.forEach((data, orderIdx) => {
-      const { rollers, duration, revealData, singleDigitHeight } = data
+    elementData.forEach((data, orderIdx) => {
+      const { el, rollers, duration, revealData, exactPxHeight, originalText } = data
+      const elementStagger = parseFloat(group.getAttribute('data-odometer-stagger')) || defaults.elementStagger
       const offset = orderIdx * elementStagger
 
-      revealData.forEach(({ el, widthEm }) => {
-        tl.to(el, {
+      revealData.forEach(({ el: rEl, widthEm }) => {
+        tl.to(rEl, {
           width: widthEm + 'em',
           opacity: 1,
           duration: defaults.revealDuration,
@@ -76,9 +73,9 @@ function initNumberOdometer() {
       rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
         const reversedIdx = rollers.length - 1 - digitIdx
         
-        // Calculamos la posición exacta en píxeles basada en la altura real renderizada
-        const fromY = isReveal ? singleDigitHeight : -(startDigit * singleDigitHeight)
-        const toY = -(targetPos * singleDigitHeight)
+        // PASO 3: Destinos en píxeles enteros (Math.round) para evitar el salto
+        const fromY = isReveal ? exactPxHeight : -(startDigit * exactPxHeight)
+        const toY = -(targetPos * exactPxHeight)
 
         tl.fromTo(roller,
           { y: fromY },
@@ -86,11 +83,14 @@ function initNumberOdometer() {
             y: toY, 
             duration, 
             ease: defaults.ease, 
-            // Crucial para el lag: forzar GPU y suavizado
             force3D: true,
-            rotationZ: 0.01, 
-            z: 0.01,
-            clearProps: "willChange" 
+            // Evita que el renderizado de texto cambie al final
+            onComplete: () => {
+                // Solo limpiamos si es el último dígito del elemento para evitar parpadeos
+                if(digitIdx === rollers.length - 1) {
+                    cleanupElement(el, originalText)
+                }
+            }
           },
           offset + reversedIdx * defaults.digitStagger
         )
@@ -98,12 +98,10 @@ function initNumberOdometer() {
     })
   })
 
-  // Helpers internos
   function getLineHeightRatio(el) {
     const cs = getComputedStyle(el)
-    let lh = cs.lineHeight
-    if (lh === 'normal') return 1.2
-    return parseFloat(lh) / parseFloat(cs.fontSize)
+    if (cs.lineHeight === 'normal') return 1.2
+    return parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)
   }
 
   function parseSegments(text) {
@@ -136,7 +134,7 @@ function initNumberOdometer() {
     })
   }
 
-  function buildRollerDOM(el, segments, step, grow) {
+  function buildRollerDOM(el, segments, pxHeight, grow) {
     el.innerHTML = ''
     const rollers = []
     const revealEls = []
@@ -145,9 +143,9 @@ function initNumberOdometer() {
     segments.forEach(seg => {
       const span = document.createElement('span')
       span.style.display = 'inline-block'
-      span.style.position = 'relative'
-      span.style.height = step + 'em'
-      span.style.lineHeight = step
+      span.style.height = pxHeight + 'px'
+      span.style.lineHeight = pxHeight + 'px'
+      span.style.verticalAlign = 'top' // Alineación estricta
 
       if (seg.type === 'static') {
         span.textContent = seg.char
@@ -164,8 +162,6 @@ function initNumberOdometer() {
         roller.style.display = 'block'
         roller.style.whiteSpace = 'pre'
         roller.style.willChange = 'transform'
-        // Mejora de rendimiento para Safari
-        roller.style.webkitFontSmoothing = 'antialiased'
         
         const digits = []
         for (let d = 0; d < totalCells; d++) digits.push(d % 10)
@@ -176,39 +172,33 @@ function initNumberOdometer() {
 
         const startDigit = seg.startDigit || 0
         const isReveal = grow && seg.hidden
-        const endDigit = parseInt(seg.char, 10)
-        const targetPos = endDigit > startDigit ? endDigit : 10 + endDigit
+        const targetPos = parseInt(seg.char, 10) + (10 * (defaults.digitCycles - 1))
 
         rollers.push({ roller, targetPos, startDigit, isReveal })
         if (isReveal) revealEls.push(span)
       }
     })
 
-    // Medimos la altura real de un dígito para el cálculo de píxeles
-    const firstRoller = el.querySelector('span[style*="overflow: hidden"]');
-    const singleDigitHeight = firstRoller ? firstRoller.offsetHeight : 0;
-
     rollers.forEach(({ roller, startDigit, isReveal }) => {
-      const initialY = isReveal ? singleDigitHeight : -(startDigit * singleDigitHeight)
+      const initialY = isReveal ? pxHeight : -(startDigit * pxHeight)
       gsap.set(roller, { y: initialY })
     })
 
-    return { rollers, revealEls, singleDigitHeight }
+    return { rollers, revealEls }
   }
 
   function cleanupElement(el, originalText) {
-    const digits = [...originalText].filter(c => /\d/.test(c))
-    let di = 0
-    el.querySelectorAll('[data-odometer-part="mask"]').forEach(mask => {
-      mask.innerHTML = digits[di++] || ''
-      mask.style.overflow = ''
+    // Para evitar el "salto", solo removemos los estilos de transformación
+    // pero mantenemos la estructura si es necesario.
+    // O mejor, reemplazamos por el texto final pero asegurando que el line-height se mantenga.
+    const containerHeight = el.offsetHeight
+    el.style.height = containerHeight + 'px'
+    el.innerHTML = originalText
+    
+    // Limpiamos los estilos inline después de un frame para que sea suave
+    requestAnimationFrame(() => {
+        el.style.height = ''
     })
-  }
-
-  function applyStaggerOrder(items, order) {
-    if (order === 'right') return [...items].reverse()
-    if (order === 'random') return [...items].sort(() => Math.random() - 0.5)
-    return items
   }
 }
 
