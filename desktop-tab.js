@@ -11,8 +11,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const iconPause = document.querySelector(".client_tabs-playpause .icon-pause");
   const progressLine = document.querySelector(".client_active-tab-line");
 
-  // NUEVO: Seleccionar las flechas de navegación
-  const arrows = document.querySelectorAll(".client_arrow-next, .client_arrow-prev, .client_arrow-wrap");
+  // Selectores de flechas basados en tu HTML
+  const arrowPrev = document.querySelector(".client_tabs-prev");
+  const arrowNext = document.querySelector(".client_tabs-next");
 
   let isPaused = false;
   let linePausedAt = 0;
@@ -95,21 +96,22 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    // 1. Escuchar clics en los Tabs
+    // Listener para los tabs individuales
     tabs.forEach(tab => {
       tab.addEventListener("click", (e) => {
-        // No detenemos propagación para que Webflow se entere, 
-        // pero reseteamos nuestro timer.
         if (pauseOnHover && menu.matches(":hover") && e.isTrusted) return;
         resetTimer();
       });
     });
 
-    // 2. Escuchar clics en las Flechas (Resetea la línea)
-    arrows.forEach(arrow => {
-      arrow.addEventListener("click", () => {
-        resetTimer();
-      });
+    // Listener para las flechas (basado en tus clases)
+    [arrowPrev, arrowNext].forEach(arrow => {
+      if (arrow) {
+        arrow.addEventListener("click", () => {
+          // Pequeño delay para que Webflow cambie la pestaña antes de reiniciar la línea
+          setTimeout(() => resetTimer(), 10);
+        });
+      }
     });
 
     if (pauseOnHover) {
@@ -131,12 +133,15 @@ document.addEventListener("DOMContentLoaded", function () {
     startLine(interval);
   });
 
+  // Play / Pause toggle logic
   if (playPauseBtn) {
     playPauseBtn.style.pointerEvents = "all";
     playPauseBtn.style.cursor = "pointer";
+
     const clickTarget = arrowWrap || playPauseBtn;
 
     clickTarget.addEventListener("click", (e) => {
+      // Solo actuar si se clica el botón de play/pause específicamente
       if (!e.target.closest(".client_tabs-playpause")) return;
       if (!isDesktop()) return;
 
