@@ -4,6 +4,16 @@ function initNumberOdometer() {
   const initFlag = 'data-odometer-initialized'
   const activeTweens = new WeakMap()
 
+  // Safari (includes iOS) snaps transforms to physical pixels, causing a visible
+  // jump at animation end when em-based values don't land on the pixel grid.
+  // Fix: on Safari only, convert each final transform position to px and snap it
+  // to the physical pixel grid with snapPx().
+  // We snap the final POSITION (targetPos * rawStep), never the step itself —
+  // rounding the step accumulates error per digit (e.g. targetPos=10 → 10× error).
+  const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+  const dpr = window.devicePixelRatio || 1
+  const snapPx = val => Math.round(val * dpr) / dpr
+
   // Configuration
   const defaults = {
     duration: 1,
@@ -41,7 +51,7 @@ function initNumberOdometer() {
       segments = markHiddenSegments(segments, startValue)
 
       const grow = shouldGrow(el, hasExplicitStart, startValue, segments)
-      const { rollers, revealEls } = buildRollerDOM(el, segments, step, grow)
+      const { rollers, revealEls, rawStep } = buildRollerDOM(el, segments, step, grow)
 
       const fontSize = parseFloat(getComputedStyle(el).fontSize)
       const revealData = revealEls.map(revealEl => {
@@ -50,7 +60,7 @@ function initNumberOdometer() {
         return { el: revealEl, widthEm }
       })
 
-      return { el, rollers, duration, step, revealData, originalText }
+      return { el, rollers, duration, step, rawStep, revealData, originalText }
     })
 
     const ordered = applyStaggerOrder(elementData, staggerOrder)
@@ -62,14 +72,14 @@ function initNumberOdometer() {
         once: true
       },
       onComplete() {
-        elementData.forEach(({ el, originalText, step }) => {
+        elementData.forEach(({ el, originalText }) => {
           cleanupElement(el, originalText)
         })
       }
     })
 
     ordered.forEach((data, orderIdx) => {
-      const { rollers, duration, step, revealData } = data
+      const { rollers, duration, step, rawStep, revealData } = data
       const offset = orderIdx * elementStagger
 
       revealData.forEach(({ el, widthEm }) => {
@@ -84,7 +94,9 @@ function initNumberOdometer() {
       rollers.forEach(({ roller, targetPos }, digitIdx) => {
         const reversedIdx = rollers.length - 1 - digitIdx
         tl.to(roller, {
-          y: -targetPos * step + 'em',
+          y: isSafari
+            ? snapPx(-targetPos * rawStep) + 'px'
+            : -targetPos * step + 'em',
           duration,
           ease: defaults.ease,
           force3D: true
@@ -124,7 +136,7 @@ function initNumberOdometer() {
     let segments = parseSegments(newText)
     segments = mapStartDigits(segments, startValue)
     segments = markHiddenSegments(segments, startValue)
-    const { rollers, revealEls } = buildRollerDOM(el, segments, step, true)
+    const { rollers, revealEls, rawStep } = buildRollerDOM(el, segments, step, true)
 
     // Measure new natural width (in em)
     const newWidthEm = el.getBoundingClientRect().width / fontSize
@@ -163,7 +175,9 @@ function initNumberOdometer() {
     rollers.forEach(({ roller, targetPos }, digitIdx) => {
       const reversedIdx = rollers.length - 1 - digitIdx
       tl.to(roller, {
-        y: -targetPos * step + 'em',
+        y: isSafari
+          ? snapPx(-targetPos * rawStep) + 'px'
+          : -targetPos * step + 'em',
         duration,
         ease,
         force3D: true
@@ -177,6 +191,16 @@ function initNumberOdometer() {
     const lh = cs.lineHeight
     if (lh === 'normal') return 1.2
     return parseFloat(lh) / parseFloat(cs.fontSize)
+  }
+
+  // Returns the line-height as an exact px float from computedStyle.
+  // Used only by Safari. More reliable than getBoundingClientRect() on the mask,
+  // which includes padding (0.05em) and shifts with different mobile font sizes.
+  function getRawStepPx(el) {
+    const cs = getComputedStyle(el)
+    const lh = cs.lineHeight
+    if (lh !== 'normal') return parseFloat(lh)
+    return parseFloat(cs.fontSize) * 1.2
   }
 
   function parseSegments(text) {
@@ -238,6 +262,7 @@ function initNumberOdometer() {
     const rollers = []
     const revealEls = []
     const totalCells = 10 * defaults.digitCycles
+
     segments.forEach(seg => {
       if (seg.type === 'static') {
         const span = document.createElement('span')
@@ -259,6 +284,7 @@ function initNumberOdometer() {
       const roller = document.createElement('span')
       roller.setAttribute('data-odometer-part', 'roller')
       roller.style.lineHeight = step
+      roller.style.willChange = 'transform'
 
       const digits = []
       for (let d = 0; d < totalCells; d++) {
@@ -275,7 +301,12 @@ function initNumberOdometer() {
       rollers.push({ roller, targetPos })
       if (isReveal) revealEls.push(mask)
     })
-    return { rollers, revealEls }
+
+    // rawStep: line-height in px, read after DOM insertion so computedStyle is final.
+    // Used only for Safari px-snapped transforms.
+    const rawStep = getRawStepPx(el)
+
+    return { rollers, revealEls, rawStep }
   }
 
   function cleanupElement(el, originalText) {
