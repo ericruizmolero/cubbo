@@ -278,12 +278,15 @@ function initNumberOdometer() {
       pendingRollers.push({ mask, roller, seg })
     })
 
-    // Measure real pixel height after DOM insertion.
-    // Safari needs DPR-snapped px; Chrome uses em directly (no pxStep needed).
-    const fontSize = parseFloat(getComputedStyle(el).fontSize)
-    const firstMask = pendingRollers[0]?.mask
-    const measuredPx = firstMask ? firstMask.getBoundingClientRect().height : 0
-    const rawStep = measuredPx > 0 ? measuredPx : fontSize * step
+    // Use the browser's own computed line-height value in px as the roller cell step.
+    // This is more reliable than getBoundingClientRect() on the mask, which includes
+    // padding (0.05em) and produces a slightly different value — causing the snap on mobile.
+    // getComputedStyle().lineHeight always returns px on real elements, even on Safari.
+    const cs = getComputedStyle(el)
+    const computedLh = cs.lineHeight
+    const fontSize = parseFloat(cs.fontSize)
+    const rawStep = computedLh !== 'normal' ? parseFloat(computedLh) : fontSize * 1.2
+    // Round to the physical pixel grid so Safari does not micro-adjust at animation end
     const dpr = window.devicePixelRatio || 1
     const pxStep = Math.round(rawStep * dpr) / dpr
 
