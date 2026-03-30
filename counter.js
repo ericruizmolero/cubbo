@@ -295,16 +295,27 @@ function initNumberOdometer() {
       el.appendChild(mask)
       const startDigit = seg.startDigit || 0
       const isReveal = grow && seg.hidden
-      gsap.set(roller, { y: isReveal ? step + 'em' : -startDigit * step + 'em' })
+      // Defer gsap.set until after rawStep is measured below
       const endDigit = parseInt(seg.char, 10)
       const targetPos = endDigit > startDigit ? endDigit : 10 + endDigit
-      rollers.push({ roller, targetPos })
+      rollers.push({ roller, targetPos, startDigit, isReveal })
       if (isReveal) revealEls.push(mask)
     })
 
     // rawStep: line-height in px, read after DOM insertion so computedStyle is final.
     // Used only for Safari px-snapped transforms.
     const rawStep = getRawStepPx(el)
+
+    // Set initial roller positions — must use the same unit as the animation target.
+    // If start=em and end=px, GSAP interpolates across unit types mid-animation,
+    // causing the roller to visibly overshoot and snap on Safari/iOS.
+    rollers.forEach(({ roller, startDigit, isReveal }) => {
+      if (isSafari) {
+        gsap.set(roller, { y: isReveal ? snapPx(rawStep) + 'px' : snapPx(-startDigit * rawStep) + 'px' })
+      } else {
+        gsap.set(roller, { y: isReveal ? step + 'em' : -startDigit * step + 'em' })
+      }
+    })
 
     return { rollers, revealEls, rawStep }
   }
