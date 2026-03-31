@@ -15,48 +15,78 @@ document.addEventListener("DOMContentLoaded", function () {
   let linePausedAt = 0;
   const timers = {};
 
-  if (progressLine) {
-    progressLine.style.width = "100%";
-    progressLine.style.transformOrigin = "left center";
-    progressLine.style.transform = "scaleX(0)";
-    progressLine.style.transition = "none";
+  // --- Generic line helpers (work on any element) ---
+
+  function initLineEl(el) {
+    if (!el) return;
+    el.style.width = "100%";
+    el.style.transformOrigin = "left center";
+    el.style.transform = "scaleX(0)";
+    el.style.transition = "none";
   }
+
+  function resetLineEl(el) {
+    if (!el) return;
+    el.style.transition = "none";
+    el.style.transform = "scaleX(0)";
+    el.offsetWidth;
+  }
+
+  function startLineEl(el, interval, fromProgress = 0) {
+    if (!el) return;
+    const remaining = interval * (1 - fromProgress);
+    el.style.transition = "none";
+    el.style.transform = `scaleX(${fromProgress})`;
+    el.offsetWidth;
+    el.style.transition = `transform ${remaining}ms linear`;
+    el.style.transform = "scaleX(1)";
+  }
+
+  function pauseLineEl(el) {
+    if (!el) return 0;
+    const matrix = getComputedStyle(el).transform;
+    const scaleX = matrix === "none" ? 0 : parseFloat(matrix.split(",")[0].replace("matrix(", ""));
+    const clamped = Math.min(Math.max(scaleX, 0), 1);
+    el.style.transition = "none";
+    el.style.transform = `scaleX(${clamped})`;
+    return clamped;
+  }
+
+  // --- Global line wrappers (maintain linePausedAt) ---
+
+  function resetLine() { resetLineEl(progressLine); }
+
+  function startLine(interval, fromProgress = 0) {
+    startLineEl(progressLine, interval, fromProgress);
+  }
+
+  function pauseLine() {
+    linePausedAt = pauseLineEl(progressLine);
+  }
+
+  function resumeLine(interval) {
+    startLineEl(progressLine, interval, linePausedAt);
+    linePausedAt = 0;
+  }
+
+  // --- Per-tab line helpers ---
+
+  function getActiveTabLine(menu) {
+    const current = menu.querySelector(":scope > .w--current");
+    return current ? current.querySelector(".client_each-active-tab-line") : null;
+  }
+
+  function resetAllTabLines(menu) {
+    menu.querySelectorAll(".client_each-active-tab-line").forEach(el => resetLineEl(el));
+  }
+
+  // Init global line
+  initLineEl(progressLine);
 
   function setIcon(playing) {
     if (!iconPlay || !iconPause) return;
     iconPlay.style.display = playing ? "none" : "block";
     iconPause.style.display = playing ? "block" : "none";
-  }
-
-  function resetLine() {
-    if (!progressLine) return;
-    progressLine.style.transition = "none";
-    progressLine.style.transform = "scaleX(0)";
-    progressLine.offsetWidth; 
-  }
-
-  function startLine(interval, fromProgress = 0) {
-    if (!progressLine) return;
-    const remaining = interval * (1 - fromProgress);
-    progressLine.style.transition = "none";
-    progressLine.style.transform = `scaleX(${fromProgress})`;
-    progressLine.offsetWidth; 
-    progressLine.style.transition = `transform ${remaining}ms linear`;
-    progressLine.style.transform = "scaleX(1)";
-  }
-
-  function pauseLine() {
-    if (!progressLine) return;
-    const matrix = getComputedStyle(progressLine).transform;
-    const scaleX = matrix === "none" ? 0 : parseFloat(matrix.split(",")[0].replace("matrix(", ""));
-    linePausedAt = Math.min(Math.max(scaleX, 0), 1);
-    progressLine.style.transition = "none";
-    progressLine.style.transform = `scaleX(${linePausedAt})`;
-  }
-
-  function resumeLine(interval) {
-    startLine(interval, linePausedAt);
-    linePausedAt = 0;
   }
 
   function scheduleAdvance(menu, index, delay) {
@@ -65,12 +95,11 @@ document.addEventListener("DOMContentLoaded", function () {
       const current = menu.querySelector(":scope > .w--current");
       if (!current) return;
       const next = current.nextElementSibling || menu.firstChild;
-      
       if (next) {
-        next.dispatchEvent(new MouseEvent('click', {
+        next.dispatchEvent(new MouseEvent("click", {
           view: window,
           bubbles: true,
-          cancelable: true
+          cancelable: true,
         }));
       }
     }, delay);
@@ -81,17 +110,22 @@ document.addEventListener("DOMContentLoaded", function () {
     const interval = 1000 * Number(menu.getAttribute(ATTR));
     const pauseOnHover = menu.getAttribute("pause-on-hover");
 
+    // Init all per-tab lines upfront
+    tabs.forEach(tab => initLineEl(tab.querySelector(".client_each-active-tab-line")));
+
     function resetTimer() {
       clearTimeout(timers[index]);
+      // Reset both global line and all per-tab lines
       resetLine();
+      resetAllTabLines(menu);
       linePausedAt = 0;
       if (!isPaused) {
         scheduleAdvance(menu, index, interval);
         startLine(interval);
+        startLineEl(getActiveTabLine(menu), interval);
       }
     }
 
-    // Listener para los tabs
     tabs.forEach(tab => {
       tab.addEventListener("click", (e) => {
         if (pauseOnHover && menu.matches(":hover") && e.isTrusted) return;
@@ -99,8 +133,6 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
 
-    // CORRECCIÓN CLAVE: Listener global para las flechas dentro del scope del menú
-    // Buscamos cualquier clic en el documento y filtramos si viene de las flechas
     document.addEventListener("click", (e) => {
       if (e.target.closest(".client_tabs-prev") || e.target.closest(".client_tabs-next")) {
         resetTimer();
@@ -110,20 +142,22 @@ document.addEventListener("DOMContentLoaded", function () {
     if (pauseOnHover) {
       menu.addEventListener("mouseover", () => {
         clearTimeout(timers[index]);
-        pauseLine();
+        pauseLine(); // sets linePausedAt
+        pauseLineEl(getActiveTabLine(menu)); // in sync, same scaleX
       });
       menu.addEventListener("mouseout", () => {
         if (!isPaused) {
           scheduleAdvance(menu, index, interval * (1 - linePausedAt));
-          resumeLine(interval);
+          resumeLine(interval); // resets linePausedAt to 0
+          startLineEl(getActiveTabLine(menu), interval, linePausedAt); // called before reset, still valid
         }
       });
     }
 
-    // Inicio inicial
-    resetLine();
+    // Initial start
     scheduleAdvance(menu, index, interval);
     startLine(interval);
+    startLineEl(getActiveTabLine(menu), interval);
   });
 
   if (playPauseBtn) {
@@ -132,7 +166,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const clickTarget = arrowWrap || playPauseBtn;
 
     clickTarget.addEventListener("click", (e) => {
-      // Solo pausar si se hace click en el botón playpause, no en las flechas
       if (!e.target.closest(".client_tabs-playpause")) return;
       if (!isDesktop()) return;
 
@@ -143,10 +176,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const interval = 1000 * Number(menu.getAttribute(ATTR));
         if (isPaused) {
           clearTimeout(timers[index]);
-          pauseLine();
+          pauseLine(); // sets linePausedAt
+          pauseLineEl(getActiveTabLine(menu));
         } else {
           scheduleAdvance(menu, index, interval * (1 - linePausedAt));
           resumeLine(interval);
+          startLineEl(getActiveTabLine(menu), interval, linePausedAt);
         }
       });
     });
