@@ -23,70 +23,67 @@ const RETURN_DURATION = 1.5;
 const RETURN_DELAY    = 1.5;
 const RETURN_EASE     = "power2.out";
 
-// ── Variant state management ──────────────────────────────
-// baseVariantActive  → el scroll principal ha cruzado el threshold
-// darkModeOverrides  → contador de secciones dark-mode que el navbar está solapando
-// La variante se aplica solo si base=true Y overrides=0
-
+// ── Gestión de estado de la Variante ──────────────────────
 let baseVariantActive = false;
-let darkModeOverrides = 0;  // counter para soportar múltiples secciones solapadas
+let darkModeOverrides = 0; 
 
 function applyVariant() {
+  // Solo aplicamos la variante si el scroll base pasó el umbral 
+  // Y NO estamos sobre una sección "dark-mode"
   const shouldHaveVariant = baseVariantActive && darkModeOverrides === 0;
   variantEls.forEach(el => el.classList.toggle(VARIANT, shouldHaveVariant));
 }
 
-// ── 1. Variant class toggle ───────────────────────────────
+// ── 1. Activación base de la variante (Scroll inicial) ─────
 const mm2 = gsap.matchMedia();
 
 mm2.add("(min-width: 992px)", () => {
   ScrollTrigger.create({
-    start:       () => Math.min(window.innerHeight + 220, parseFloat(getComputedStyle(document.documentElement).fontSize) * 60),
-    onEnter:     () => { baseVariantActive = true;  applyVariant(); },
-    onLeaveBack: () => { baseVariantActive = false; applyVariant(); },
+    start: () => Math.min(window.innerHeight + 220, parseFloat(getComputedStyle(document.documentElement).fontSize) * 60),
+    onEnter:      () => { baseVariantActive = true;  applyVariant(); },
+    onLeaveBack:  () => { baseVariantActive = false; applyVariant(); },
   });
 });
 
 mm2.add("(max-width: 991px)", () => {
   ScrollTrigger.create({
-    start:       () => window.innerHeight - 200,
-    onEnter:     () => { baseVariantActive = true;  applyVariant(); },
-    onLeaveBack: () => { baseVariantActive = false; applyVariant(); },
+    start: () => window.innerHeight - 200,
+    onEnter:      () => { baseVariantActive = true;  applyVariant(); },
+    onLeaveBack:  () => { baseVariantActive = false; applyVariant(); },
   });
 });
 
-// ── Dark-mode sections override ───────────────────────────
-// Cuando el top de la sección queda a 60px del top del viewport
-// el navbar entra en la sección → suprimimos la variante mientras esté ahí.
+// ── 2. Override para Secciones Dark-Mode (CORREGIDO) ───────
+// Usamos "top 10%" o "top 60px" para que solo detecte cuando la sección 
+// llega a la zona del navbar, no cuando entra a la pantalla por abajo.
 
 document.querySelectorAll('[navbar="dark-mode"]').forEach(section => {
   ScrollTrigger.create({
     trigger: section,
-    start: "top 60px",   // top de la sección a 60px del viewport top
-    end:   "bottom 60px",
-    onEnter:      () => { darkModeOverrides++; applyVariant(); },
-    onLeave:      () => { darkModeOverrides--; applyVariant(); },
-    onEnterBack:  () => { darkModeOverrides++; applyVariant(); },
-    onLeaveBack:  () => { darkModeOverrides--; applyVariant(); },
+    start: "top 80px",    // Se activa cuando el tope de la sección llega a 80px del top del viewport
+    end: "bottom 80px",   // Se desactiva cuando el fondo de la sección sube de los 80px del top
+    onEnter:       () => { darkModeOverrides++; applyVariant(); },
+    onLeave:       () => { darkModeOverrides--; applyVariant(); },
+    onEnterBack:   () => { darkModeOverrides++; applyVariant(); },
+    onLeaveBack:   () => { darkModeOverrides--; applyVariant(); },
   });
 });
 
-// ── 2 & 3. Padding + radius — desktop only (≥992px) ───────
+// ── 3. Padding + Radius — Solo Desktop (≥992px) ────────────
 const mm = gsap.matchMedia();
 
 mm.add("(min-width: 992px)", () => {
-
   const INITIAL_PAD = parseFloat(
     getComputedStyle(root).getPropertyValue("--_spacing---hero--padding--hero-pad")
-  );
+  ) || 0;
+  
   root.style.setProperty("--_spacing---hero--padding--hero-pad", `${INITIAL_PAD}rem`);
-
   const INITIAL_RADIUS = gsap.getProperty(heroBg, "borderRadius");
 
   let returnPadTween    = null;
   let returnRadiusTween = null;
 
-  // ── 2. CSS variable: INITIAL_PAD → 0rem ────────────────
+  // Animación del Padding (CSS Variable)
   ScrollTrigger.create({
     start: SCROLL_START,
     end:   SCROLL_END,
@@ -100,30 +97,27 @@ mm.add("(min-width: 992px)", () => {
     },
     onLeaveBack: () => {
       if (returnPadTween) { returnPadTween.kill(); returnPadTween = null; }
-      const current = parseFloat(
-        root.style.getPropertyValue("--_spacing---hero--padding--hero-pad")
-      ) || 0;
+      const current = parseFloat(root.style.getPropertyValue("--_spacing---hero--padding--hero-pad")) || 0;
+      
       returnPadTween = gsap.to({ val: current }, {
         val:      INITIAL_PAD,
         duration: RETURN_DURATION,
         delay:    RETURN_DELAY,
         ease:     RETURN_EASE,
         onUpdate: function () {
-          root.style.setProperty(
-            "--_spacing---hero--padding--hero-pad",
-            `${this.targets()[0].val}rem`
-          );
+          root.style.setProperty("--_spacing---hero--padding--hero-pad", `${this.targets()[0].val}rem`);
         },
         onComplete: () => { returnPadTween = null; },
       });
     },
   });
 
-  // ── 3. Border-radius hero_bg-color → 0px ───────────────
+  // Animación del Border-Radius
   gsap.to(heroBg, {
     borderRadius: 0,
     ease: "none",
     scrollTrigger: {
+      trigger: root,
       start: SCROLL_START,
       end:   SCROLL_END,
       scrub: 1.5,
