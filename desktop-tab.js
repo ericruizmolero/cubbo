@@ -115,14 +115,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function resetTimer() {
       clearTimeout(timers[index]);
-      // Reset both global line and all per-tab lines
       resetLine();
       resetAllTabLines(menu);
       linePausedAt = 0;
       if (!isPaused) {
         scheduleAdvance(menu, index, interval);
         startLine(interval);
-        startLineEl(getActiveTabLine(menu), interval);
+        // Defer one frame so Webflow has time to apply .w--current
+        requestAnimationFrame(() => {
+          startLineEl(getActiveTabLine(menu), interval);
+        });
       }
     }
 
@@ -142,14 +144,17 @@ document.addEventListener("DOMContentLoaded", function () {
     if (pauseOnHover) {
       menu.addEventListener("mouseover", () => {
         clearTimeout(timers[index]);
-        pauseLine(); // sets linePausedAt
-        pauseLineEl(getActiveTabLine(menu)); // in sync, same scaleX
+        pauseLine();
+        pauseLineEl(getActiveTabLine(menu));
       });
       menu.addEventListener("mouseout", () => {
         if (!isPaused) {
-          scheduleAdvance(menu, index, interval * (1 - linePausedAt));
-          resumeLine(interval); // resets linePausedAt to 0
-          startLineEl(getActiveTabLine(menu), interval, linePausedAt); // called before reset, still valid
+          const savedProgress = linePausedAt;
+          scheduleAdvance(menu, index, interval * (1 - savedProgress));
+          resumeLine(interval);
+          requestAnimationFrame(() => {
+            startLineEl(getActiveTabLine(menu), interval, savedProgress);
+          });
         }
       });
     }
@@ -157,7 +162,9 @@ document.addEventListener("DOMContentLoaded", function () {
     // Initial start
     scheduleAdvance(menu, index, interval);
     startLine(interval);
-    startLineEl(getActiveTabLine(menu), interval);
+    requestAnimationFrame(() => {
+      startLineEl(getActiveTabLine(menu), interval);
+    });
   });
 
   if (playPauseBtn) {
@@ -176,12 +183,15 @@ document.addEventListener("DOMContentLoaded", function () {
         const interval = 1000 * Number(menu.getAttribute(ATTR));
         if (isPaused) {
           clearTimeout(timers[index]);
-          pauseLine(); // sets linePausedAt
+          pauseLine();
           pauseLineEl(getActiveTabLine(menu));
         } else {
-          scheduleAdvance(menu, index, interval * (1 - linePausedAt));
+          const savedProgress = linePausedAt;
+          scheduleAdvance(menu, index, interval * (1 - savedProgress));
           resumeLine(interval);
-          startLineEl(getActiveTabLine(menu), interval, linePausedAt);
+          requestAnimationFrame(() => {
+            startLineEl(getActiveTabLine(menu), interval, savedProgress);
+          });
         }
       });
     });
