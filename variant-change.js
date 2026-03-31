@@ -1,4 +1,3 @@
-
 gsap.registerPlugin(ScrollTrigger);
 
 const SCROLL_START = 50;
@@ -24,22 +23,51 @@ const RETURN_DURATION = 1.5;
 const RETURN_DELAY    = 1.5;
 const RETURN_EASE     = "power2.out";
 
+// ── Variant state management ──────────────────────────────
+// baseVariantActive  → el scroll principal ha cruzado el threshold
+// darkModeOverrides  → contador de secciones dark-mode que el navbar está solapando
+// La variante se aplica solo si base=true Y overrides=0
+
+let baseVariantActive = false;
+let darkModeOverrides = 0;  // counter para soportar múltiples secciones solapadas
+
+function applyVariant() {
+  const shouldHaveVariant = baseVariantActive && darkModeOverrides === 0;
+  variantEls.forEach(el => el.classList.toggle(VARIANT, shouldHaveVariant));
+}
+
 // ── 1. Variant class toggle ───────────────────────────────
 const mm2 = gsap.matchMedia();
 
 mm2.add("(min-width: 992px)", () => {
   ScrollTrigger.create({
     start:       () => Math.min(window.innerHeight + 220, parseFloat(getComputedStyle(document.documentElement).fontSize) * 60),
-    onEnter:     () => variantEls.forEach(el => el.classList.add(VARIANT)),
-    onLeaveBack: () => variantEls.forEach(el => el.classList.remove(VARIANT)),
+    onEnter:     () => { baseVariantActive = true;  applyVariant(); },
+    onLeaveBack: () => { baseVariantActive = false; applyVariant(); },
   });
 });
 
 mm2.add("(max-width: 991px)", () => {
   ScrollTrigger.create({
     start:       () => window.innerHeight - 200,
-    onEnter:     () => variantEls.forEach(el => el.classList.add(VARIANT)),
-    onLeaveBack: () => variantEls.forEach(el => el.classList.remove(VARIANT)),
+    onEnter:     () => { baseVariantActive = true;  applyVariant(); },
+    onLeaveBack: () => { baseVariantActive = false; applyVariant(); },
+  });
+});
+
+// ── Dark-mode sections override ───────────────────────────
+// Cuando el top de la sección queda a 60px del top del viewport
+// el navbar entra en la sección → suprimimos la variante mientras esté ahí.
+
+document.querySelectorAll('[navbar="dark-mode"]').forEach(section => {
+  ScrollTrigger.create({
+    trigger: section,
+    start: "top 60px",   // top de la sección a 60px del viewport top
+    end:   "bottom 60px",
+    onEnter:      () => { darkModeOverrides++; applyVariant(); },
+    onLeave:      () => { darkModeOverrides--; applyVariant(); },
+    onEnterBack:  () => { darkModeOverrides++; applyVariant(); },
+    onLeaveBack:  () => { darkModeOverrides--; applyVariant(); },
   });
 });
 
@@ -48,7 +76,6 @@ const mm = gsap.matchMedia();
 
 mm.add("(min-width: 992px)", () => {
 
-  // Read & lock the initial value so GSAP always wins over @media overrides
   const INITIAL_PAD = parseFloat(
     getComputedStyle(root).getPropertyValue("--_spacing---hero--padding--hero-pad")
   );
@@ -118,7 +145,6 @@ mm.add("(min-width: 992px)", () => {
     },
   });
 
-  // Cleanup: restore the CSS var and kill tweens when leaving desktop
   return () => {
     if (returnPadTween)    { returnPadTween.kill();    returnPadTween    = null; }
     if (returnRadiusTween) { returnRadiusTween.kill(); returnRadiusTween = null; }
