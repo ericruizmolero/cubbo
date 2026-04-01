@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
   "use strict";
 
-  const ATTR = "r-automatic-tabs";
+  const ATTR = "custom-automatic-tabs";
   const isDesktop = () => window.matchMedia("(min-width: 992px)").matches;
 
   const tabMenus = document.querySelectorAll(`[${ATTR}]`);
