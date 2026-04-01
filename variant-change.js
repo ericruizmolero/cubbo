@@ -56,19 +56,25 @@ mm2.add("(max-width: 991px)", () => {
 // ── 2. Override para Secciones Dark-Mode (CORREGIDO) ───────
 // Usamos "top 10%" o "top 60px" para que solo detecte cuando la sección 
 // llega a la zona del navbar, no cuando entra a la pantalla por abajo.
-
-document.querySelectorAll('[navbar="dark-mode"]').forEach(section => {
-  ScrollTrigger.create({
-    trigger: section,
-    start: "top 80px",    // Se activa cuando el tope de la sección llega a 80px del top del viewport
-    end: "bottom 80px",   // Se desactiva cuando el fondo de la sección sube de los 80px del top
-    onEnter:       () => { darkModeOverrides++; applyVariant(); },
-    onLeave:       () => { darkModeOverrides--; applyVariant(); },
-    onEnterBack:   () => { darkModeOverrides++; applyVariant(); },
-    onLeaveBack:   () => { darkModeOverrides--; applyVariant(); },
+// Asegúrate de que el DOM esté listo
+window.addEventListener("load", () => {
+  
+  document.querySelectorAll('[navbar="dark-mode"]').forEach(section => {
+    ScrollTrigger.create({
+      trigger: section,
+      // "top" de la sección llega a "80px" desde el top del viewport
+      start: "top 80px", 
+      end: "bottom 80px",
+      onEnter:       () => { darkModeOverrides++; applyVariant(); },
+      onLeave:       () => { darkModeOverrides--; applyVariant(); },
+      onEnterBack:   () => { darkModeOverrides++; applyVariant(); },
+      onLeaveBack:   () => { darkModeOverrides--; applyVariant(); },
+      // Esto ayuda a evitar saltos si el usuario scrollea muy rápido
+      fastScrollEnd: true, 
+    });
   });
-});
 
+});
 // ── 3. Padding + Radius — Solo Desktop (≥992px) ────────────
 const mm = gsap.matchMedia();
 
