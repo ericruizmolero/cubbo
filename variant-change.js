@@ -71,6 +71,7 @@ window.addEventListener("load", () => {
       onLeaveBack:   () => { darkModeOverrides--; applyVariant(); },
       // Esto ayuda a evitar saltos si el usuario scrollea muy rápido
       fastScrollEnd: true, 
+      markers: true
     });
   });
 
