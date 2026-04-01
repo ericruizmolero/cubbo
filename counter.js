@@ -1,10 +1,10 @@
-// Resource: Number Odometer Pro (Multi-Group + Safari-Fix + No-Jump)
+// Resource: Number Odometer Pro (Safari-Fix + No-Jump + Programmatic Update + Multi-Group)
 function initNumberOdometer() {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const initFlag = 'data-odometer-initialized';
   const activeTweens = new WeakMap();
 
-  // Configuración por defecto
+  // Configuration
   const defaults = {
     duration: 1.2,
     ease: 'power4.out',
@@ -17,7 +17,7 @@ function initNumberOdometer() {
     digitCycles: 2
   };
 
-  // 1. Buscamos todos los grupos de la página
+  // 1. LÓGICA DE GRUPOS (SCROLL TRIGGER)
   document.querySelectorAll('[data-odometer-group]').forEach(group => {
     if (group.hasAttribute(initFlag)) return;
     group.setAttribute(initFlag, '');
@@ -29,83 +29,129 @@ function initNumberOdometer() {
     const triggerStart = group.getAttribute('data-odometer-trigger-start') || defaults.triggerStart;
     const elementStagger = parseFloat(group.getAttribute('data-odometer-stagger')) || defaults.elementStagger;
 
-    // 2. Creamos un ScrollTrigger para CADA grupo
-    ScrollTrigger.create({
-      trigger: group,
-      start: triggerStart,
-      once: true,
-      onEnter: () => {
-        // Preparamos los datos de los elementos del grupo
-        const elementData = elements.map(el => {
-          const originalText = el.textContent.trim();
-          const hasExplicitStart = el.hasAttribute('data-odometer-start');
-          const startValue = parseFloat(el.getAttribute('data-odometer-start')) || 0;
-          const duration = parseFloat(el.getAttribute('data-odometer-duration')) || defaults.duration;
+    // Pre-procesar datos para cada elemento del grupo
+    const elementData = elements.map(el => {
+      const originalText = el.textContent.trim();
+      const hasExplicitStart = el.hasAttribute('data-odometer-start');
+      const startValue = parseFloat(el.getAttribute('data-odometer-start')) || 0;
+      const duration = parseFloat(el.getAttribute('data-odometer-duration')) || defaults.duration;
+      
+      const fontSize = parseFloat(getComputedStyle(el).fontSize);
+      const pxStep = Math.round(fontSize * getLineHeightRatio(el));
 
-          // FIX SAFARI: Cálculo de altura exacta en PX
-          const fontSize = parseFloat(getComputedStyle(el).fontSize);
-          const stepRatio = getLineHeightRatio(el);
-          const pxStep = Math.round(fontSize * stepRatio);
+      let segments = parseSegments(originalText);
+      segments = mapStartDigits(segments, startValue);
+      segments = markHiddenSegments(segments, startValue);
 
-          let segments = parseSegments(originalText);
-          segments = mapStartDigits(segments, startValue);
-          segments = markHiddenSegments(segments, startValue);
+      const grow = shouldGrow(el, hasExplicitStart, startValue, segments);
+      const { rollers, revealEls } = buildRollerDOM(el, segments, pxStep, grow);
 
-          const grow = shouldGrow(el, hasExplicitStart, startValue, segments);
-          const { rollers, revealEls } = buildRollerDOM(el, segments, pxStep, grow);
+      const revealData = revealEls.map(revealEl => {
+        const widthEm = revealEl.offsetWidth / fontSize;
+        gsap.set(revealEl, { width: 0, overflow: 'hidden' });
+        return { el: revealEl, widthEm };
+      });
 
-          const revealData = revealEls.map(revealEl => {
-            const widthEm = revealEl.offsetWidth / fontSize;
-            gsap.set(revealEl, { width: 0, overflow: 'hidden' });
-            return { el: revealEl, widthEm };
-          });
+      return { el, rollers, duration, pxStep, revealData, originalText };
+    });
 
-          return { el, rollers, duration, pxStep, revealData, originalText };
-        });
+    const ordered = applyStaggerOrder(elementData, staggerOrder);
 
-        const ordered = applyStaggerOrder(elementData, staggerOrder);
-        const tl = gsap.timeline();
-
-        // 3. Ejecutamos la animación del grupo
-        ordered.forEach((data, orderIdx) => {
-          const { el, rollers, duration, pxStep, revealData, originalText } = data;
-          const offset = orderIdx * elementStagger;
-
-          revealData.forEach(({ el: rEl, widthEm }) => {
-            tl.to(rEl, {
-              width: widthEm + 'em',
-              opacity: 1,
-              duration: defaults.revealDuration,
-              ease: defaults.revealEase
-            }, offset);
-          });
-
-          rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
-            const reversedIdx = rollers.length - 1 - digitIdx;
-            const fromY = isReveal ? pxStep : -(startDigit * pxStep);
-            const toY = -(targetPos * pxStep);
-
-            tl.fromTo(roller,
-              { y: fromY },
-              { 
-                y: toY, 
-                duration, 
-                ease: defaults.ease, 
-                force3D: true,
-                onComplete: () => {
-                  if (digitIdx === rollers.length - 1) cleanupElement(el, originalText);
-                }
-              },
-              offset + (reversedIdx * defaults.digitStagger)
-            );
-          });
-        });
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: group,
+        start: triggerStart,
+        once: true
       }
+    });
+
+    ordered.forEach((data, orderIdx) => {
+      const { el, rollers, duration, pxStep, revealData, originalText } = data;
+      const offset = orderIdx * elementStagger;
+
+      revealData.forEach(({ el: rEl, widthEm }) => {
+        tl.to(rEl, {
+          width: widthEm + 'em',
+          opacity: 1,
+          duration: defaults.revealDuration,
+          ease: defaults.revealEase
+        }, offset);
+      });
+
+      rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
+        const reversedIdx = rollers.length - 1 - digitIdx;
+        const fromY = isReveal ? pxStep : -(startDigit * pxStep);
+        const toY = -(targetPos * pxStep);
+
+        tl.fromTo(roller,
+          { y: fromY },
+          { 
+            y: toY, 
+            duration, 
+            ease: defaults.ease, 
+            force3D: true,
+            onComplete: () => {
+              if (digitIdx === rollers.length - 1) cleanupElement(el, originalText);
+            }
+          },
+          offset + reversedIdx * defaults.digitStagger
+        );
+      });
     });
   });
 
-  // --- Funciones Helpers (Misma lógica que tu original) ---
+  // 2. LÓGICA DE ACTUALIZACIÓN PROGRAMÁTICA (RESTAURADA)
+  const updateOdometer = function(el, newText, options = {}) {
+    const currentText = el.textContent.trim();
+    if (currentText === newText) return;
 
+    const duration = options.duration || defaults.duration;
+    const ease = options.ease || defaults.ease;
+
+    const existing = activeTweens.get(el);
+    if (existing) { existing.kill(); gsap.set(el, { clearProps: 'width,overflow' }); }
+
+    const fontSize = parseFloat(getComputedStyle(el).fontSize);
+    const pxStep = Math.round(fontSize * getLineHeightRatio(el));
+    const oldWidthEm = el.getBoundingClientRect().width / fontSize;
+
+    const startSegments = parseSegments(currentText);
+    const startDigitsStr = startSegments.filter(s => s.type === 'digit').map(s => s.char).join('');
+    const startValue = parseInt(startDigitsStr, 10) || 0;
+
+    let segments = parseSegments(newText);
+    segments = mapStartDigits(segments, startValue);
+    segments = markHiddenSegments(segments, startValue);
+    
+    const { rollers, revealEls } = buildRollerDOM(el, segments, pxStep, true);
+    const newWidthEm = el.getBoundingClientRect().width / fontSize;
+    const widthChanged = Math.abs(oldWidthEm - newWidthEm) > 0.01;
+
+    if (widthChanged) gsap.set(el, { width: oldWidthEm + 'em', overflow: 'hidden' });
+
+    const tl = gsap.timeline({
+      onComplete() { cleanupElement(el, newText); activeTweens.delete(el); }
+    });
+    activeTweens.set(el, tl);
+
+    if (widthChanged) {
+      tl.to(el, { width: newWidthEm + 'em', duration: defaults.revealDuration, ease: defaults.revealEase }, 0);
+    }
+
+    rollers.forEach(({ roller, targetPos, startDigit, isReveal }, digitIdx) => {
+      const reversedIdx = rollers.length - 1 - digitIdx;
+      const fromY = isReveal ? pxStep : -(startDigit * pxStep);
+      const toY = -(targetPos * pxStep);
+
+      tl.fromTo(roller,
+        { y: fromY },
+        { y: toY, duration, ease, force3D: true },
+        reversedIdx * defaults.digitStagger
+      );
+    });
+  };
+
+  // 3. HELPERS
   function getLineHeightRatio(el) {
     const cs = getComputedStyle(el);
     if (cs.lineHeight === 'normal') return 1.2;
@@ -205,21 +251,44 @@ function initNumberOdometer() {
     requestAnimationFrame(() => { el.style.height = ''; });
   }
 
+  function recalcOnResize() {
+    document.querySelectorAll('[data-odometer-element]').forEach(el => {
+      const running = activeTweens.get(el);
+      if (running) { running.progress(1); activeTweens.delete(el); }
+      const hasRollers = el.querySelector('[data-odometer-part="roller"]');
+      if (hasRollers) {
+        const fontSize = parseFloat(getComputedStyle(el).fontSize);
+        const pxStep = Math.round(fontSize * getLineHeightRatio(el));
+        el.querySelectorAll('[data-odometer-part="mask"], [data-odometer-part="static"]').forEach(s => {
+          s.style.height = pxStep + 'px';
+          s.style.lineHeight = pxStep + 'px';
+        });
+      }
+    });
+    ScrollTrigger.refresh();
+  }
+
+  let resizeTimer;
+  let lastWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (window.innerWidth === lastWidth) return;
+      lastWidth = window.innerWidth;
+      recalcOnResize();
+    }, 250);
+  });
+
   function applyStaggerOrder(items, order) {
     if (order === 'right') return [...items].reverse();
     if (order === 'random') return [...items].sort(() => Math.random() - 0.5);
     return items;
   }
 
-  // Soporte para actualización programática (opcional, como en tu original)
-  return function updateOdometer(el, newText, options = {}) {
-    // ... lógica de actualización si la necesitas ...
-  };
+  // IMPORTANTE: Retornamos la función para que pueda ser capturada externamente
+  return updateOdometer;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  if (window.gsap && window.ScrollTrigger) {
-    gsap.registerPlugin(ScrollTrigger);
-    initNumberOdometer();
-  }
-});
+// Ejemplo de inicialización: 
+// window.myOdometerUpdate = initNumberOdometer();
+document.addEventListener("DOMContentLoaded", initNumberOdometer);
