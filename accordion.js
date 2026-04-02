@@ -29,11 +29,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 2. Control de visibilidad de flechas en Tablet/Mobile (Sin Loop)
     if (isMobile) {
-      if (prevBtn) prevBtn.style.opacity = (activeIndex === 0) ? "0.2" : "1";
-      if (prevBtn) prevBtn.style.pointerEvents = (activeIndex === 0) ? "none" : "auto";
-      
-      if (nextBtn) nextBtn.style.opacity = (activeIndex === total - 1) ? "0.2" : "1";
-      if (nextBtn) nextBtn.style.pointerEvents = (activeIndex === total - 1) ? "none" : "auto";
+      if (prevBtn) {
+        prevBtn.style.opacity = (activeIndex === 0) ? "0.2" : "1";
+        prevBtn.style.pointerEvents = (activeIndex === 0) ? "none" : "auto";
+      }
+      if (nextBtn) {
+        nextBtn.style.opacity = (activeIndex === total - 1) ? "0.2" : "1";
+        nextBtn.style.pointerEvents = (activeIndex === total - 1) ? "none" : "auto";
+      }
     } else {
       // En Desktop siempre visibles (Loop activado)
       if (prevBtn) { prevBtn.style.opacity = "1"; prevBtn.style.pointerEvents = "auto"; }
@@ -86,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
     activeIndex = nextIdx;
     update();
     
-    setTimeout(() => { isAnimating = false; }, 400);
+    setTimeout(() => { isAnimating = false; }, 400); // 400ms para coincidir con la duración del fade in de GSAP
   }
 
   // EVENTOS
@@ -97,24 +100,35 @@ document.addEventListener('DOMContentLoaded', function() {
   if (prevBtn) prevBtn.onclick = () => goTo(activeIndex - 1);
   if (nextBtn) nextBtn.onclick = () => goTo(activeIndex + 1);
 
+  // Lógica de Draggable
   const proxy = document.createElement('div');
   Draggable.create(proxy, {
     trigger: viewport,
     type: "x",
+    dragClickables: true, // Ignora clics en enlaces/botones y evita falsos inicios de arrastre
     onDragEnd: function() {
       if (this.x < -60) goTo(activeIndex + 1);
       if (this.x > 60) goTo(activeIndex - 1);
-      gsap.set(this.target, { x: 0 });
+      gsap.set(this.target, { x: 0 }); // Reseteamos el proxy
     }
   });
 
+  // Navegación por teclado
   document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight') goTo(activeIndex + 1);
     if (e.key === 'ArrowLeft') goTo(activeIndex - 1);
   });
 
-  // Re-chequear al redimensionar (opcional)
-  window.addEventListener('resize', update);
+  // Control optimizado del Resize
+  let windowWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    // Solo se actualiza si cambia el ancho (evita el glitch en mobile al ocultarse/mostrarse la barra del navegador)
+    if (window.innerWidth !== windowWidth) {
+      windowWidth = window.innerWidth;
+      update();
+    }
+  });
 
+  // Inicialización de la vista
   update();
 });
