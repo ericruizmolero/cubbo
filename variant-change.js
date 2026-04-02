@@ -41,10 +41,12 @@ const init = () => {
   }, (context) => {
     let { isDesktop } = context.conditions;
 
-    // --- ACTIVACIÓN BASE ---
+// --- ACTIVACIÓN BASE ---
     ScrollTrigger.create({
-      trigger: heroBg, // O el contenedor principal del hero: document.querySelector('.hero-section')
-      start: "bottom top", // Se activa cuando el "bottom" del hero toca el "top" de la pantalla
+      trigger: heroBg,
+      // Se activa cuando el "bottom" del hero está a 100px de tocar el "top" de la pantalla.
+      // Puedes cambiar "100px" por "10%" o el valor que mejor se sienta.
+      start: "bottom 100px", 
       onEnter: () => { baseVariantActive = true; applyVariant(); },
       onLeaveBack: () => { baseVariantActive = false; applyVariant(); },
     });
