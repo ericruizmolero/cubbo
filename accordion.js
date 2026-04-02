@@ -47,9 +47,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (globalTextContainer && sourceText) {
       const footerLayout = wrapper.querySelector('.brand_bottom-text-layout');
+      
+      // Control de animación: 0 de movimiento en Y para móvil (solo fade), 10 para desktop (fade + slide)
+      const yOffset = isMobile ? 0 : 10;
+
       gsap.to(footerLayout, {
         opacity: 0,
-        y: 10,
+        y: yOffset,
         duration: 0.3,
         onComplete: () => {
           globalTextContainer.innerHTML = sourceText.innerHTML;
