@@ -41,33 +41,13 @@ const init = () => {
   }, (context) => {
     let { isDesktop } = context.conditions;
 
-// --- ACTIVACIÓN BASE ---
-ScrollTrigger.create({
-  start: () => {
-    const vh = window.innerHeight;
-    const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    
-    if (window.innerWidth >= 992) {
-      // Desktop: calc(min(100vh, 70rem))
-      // Usamos el mismo cálculo lógico para determinar el punto de activación
-      return Math.min(vh, 70 * fontSize);
-    } else {
-      // Tablet/Mobile: 100vh
-      return vh;
-    }
-  },
-  onEnter: () => { 
-    baseVariantActive = true; 
-    applyVariant(); 
-  },
-  onLeaveBack: () => { 
-    baseVariantActive = false; 
-    applyVariant(); 
-  },
-  // invalidateOnRefresh asegura que si cambias el tamaño de la ventana, 
-  // se vuelva a ejecutar la función del 'start'
-  invalidateOnRefresh: true 
-});
+    // --- ACTIVACIÓN BASE ---
+    ScrollTrigger.create({
+      trigger: heroBg, // O el contenedor principal del hero: document.querySelector('.hero-section')
+      start: "bottom top", // Se activa cuando el "bottom" del hero toca el "top" de la pantalla
+      onEnter: () => { baseVariantActive = true; applyVariant(); },
+      onLeaveBack: () => { baseVariantActive = false; applyVariant(); },
+    });
 
     // --- ANIMACIONES HERO (Solo Desktop) ---
     if (isDesktop && heroBg) {
