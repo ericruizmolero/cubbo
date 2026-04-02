@@ -10,7 +10,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const nextBtn = document.querySelector(".how_tabs-next");
   const globalLine = document.querySelector(".how_active-tab-line");
   
-  let isGlobalPaused = false;
+  // NUEVO: Inicia en true para que el slider arranque en pausa
+  let isGlobalPaused = true; 
   const state = new Map();
 
   // --- 1. Helpers de Líneas ---
@@ -51,10 +52,9 @@ document.addEventListener("DOMContentLoaded", function () {
   function silentClick(element) {
     if (!element) return;
     
-    // Forzamos que el elemento no sea "enfocable" momentáneamente
     const originalTabIndex = element.getAttribute("tabindex");
     element.setAttribute("tabindex", "-1");
-    element.style.outline = "none"; // Evita el anillo de foco visual
+    element.style.outline = "none"; 
 
     const event = new MouseEvent("click", {
       view: window,
@@ -63,13 +63,9 @@ document.addEventListener("DOMContentLoaded", function () {
       composed: true
     });
 
-    // Disparamos el evento
     element.dispatchEvent(event);
-    
-    // Quitamos el foco inmediatamente
     element.blur();
 
-    // Restauramos el estado
     if (originalTabIndex !== null) element.setAttribute("tabindex", originalTabIndex);
     else element.removeAttribute("tabindex");
   }
@@ -103,13 +99,11 @@ document.addEventListener("DOMContentLoaded", function () {
     resetAllLines(menu);
 
     tabs.forEach(tab => {
-      tab.removeAttribute("href"); // Eliminamos el ancla
+      tab.removeAttribute("href"); 
 
       tab.addEventListener("click", (e) => {
-        // DETENCIÓN CRÍTICA: Evitamos que Webflow u otros scripts manejen el scroll
         if (e.isTrusted) { 
-            // Si es un click humano, dejamos que Webflow cambie el tab pero bloqueamos el ancla
-            // No usamos e.stopPropagation aquí para que Webflow sí cambie el tab
+            // Click humano
         }
         
         e.preventDefault(); 
@@ -125,7 +119,6 @@ document.addEventListener("DOMContentLoaded", function () {
           runCycle(menu);
         }
 
-        // Limpiador de URL (History API)
         setTimeout(() => {
           if (window.location.hash.includes("w-tabs-")) {
             history.replaceState(null, null, window.location.pathname + window.location.search);
@@ -144,13 +137,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // --- 4. Play / Pause ---
   if (playPauseBtn) {
+    const iconPlay = playPauseBtn.querySelector(".how_icon-play");
+    const iconPause = playPauseBtn.querySelector(".how_icon-pause");
+
+    // NUEVO: Configurar la visualización inicial de los iconos
+    if (iconPlay && iconPause) {
+      iconPlay.style.setProperty("display", "block", "important"); // Mostrar Play al inicio
+      iconPause.style.setProperty("display", "none", "important");  // Ocultar Pause al inicio
+    }
+
     playPauseBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      e.stopPropagation(); // Evitamos que este click active otras cosas
+      e.stopPropagation(); 
       isGlobalPaused = !isGlobalPaused;
-
-      const iconPlay = playPauseBtn.querySelector(".how_icon-play");
-      const iconPause = playPauseBtn.querySelector(".how_icon-pause");
 
       if (iconPlay && iconPause) {
         iconPlay.style.setProperty("display", isGlobalPaused ? "block" : "none", "important");
