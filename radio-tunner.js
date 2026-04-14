@@ -110,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (images.length > 0) {
         currentContentAnim.fromTo(images,
           { opacity: 0, scale: 1 },
-          { opacity: 1, scale: 1, duration: 0.4, stagger: 0.1, ease: "power2.inOut" },
+          { opacity: 1, scale: 1, duration: 0.8, stagger: 0.1, ease: "power2.out" },
           0.1
         );
       }
