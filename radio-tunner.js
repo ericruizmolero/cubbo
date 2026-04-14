@@ -1,20 +1,33 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // ==========================================
   // 1. SELECTORES PRINCIPALES
+  // ==========================================
   const tabs = document.querySelectorAll(".skill_tab-link");
   const freqs = document.querySelectorAll(".skill_freq");
   const tabContents = document.querySelectorAll(".skill_tab-content");
   const skillSection = document.querySelector(".skill_component"); 
-  
+
+  // Nuevos selectores de controles
+  const prevBtn = document.querySelector(".skill_tabs-prev");
+  const nextBtn = document.querySelector(".skill_tabs-next");
+  const playPauseBtn = document.querySelector(".skill_tabs-playpause");
+  const iconPlay = document.querySelector(".how_icon-play");
+  const iconPause = document.querySelector(".how_icon-pause");
+  const activeLine = document.querySelector(".skill_active-tab-line");
+
   const tabToPistonMap = [1, 8, 15, 22, 29]; 
   const waveProxy = { pistonIndex: 15 }; 
   let hasAnimated = false; 
 
-  // --- NUEVAS VARIABLES PARA AUTOPLAY ---
-  let autoPlayTimer = null;
-  let currentIndex = 2; // Empezamos en el index 2 (la mitad)
-  const tiempoAutoplay = 4000; // 4000 = 4 segundos. Cámbialo si lo quieres más rápido o lento.
+  // Variables de Estado para Autoplay
+  let currentIndex = 2; // Inicia en la mitad
+  let isPaused = false; 
+  let progressTween = null;
+  const TIME_PER_TAB = 4; // Segundos que tarda en llenarse la línea y cambiar de tab
 
-  // --- 2. PREPARAR TEXTOS ---
+  // ==========================================
+  // 2. PREPARAR TEXTOS
+  // ==========================================
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
     elements.forEach(el => {
@@ -47,7 +60,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
-  // --- 3. LÓGICA DE LA OLA ---
+  // ==========================================
+  // 3. LÓGICA DE LA OLA (FRECUENCIAS)
+  // ==========================================
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
     freqs.forEach((piston, idx) => {
@@ -61,11 +76,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentContentAnim = null;
 
-  // --- 4. ANIMACIÓN PRINCIPAL ---
+  // ==========================================
+  // 4. ANIMACIÓN PRINCIPAL Y LÍNEA DE PROGRESO
+  // ==========================================
   function goToTab(activeIndex) {
+    // Actualizar visualmente los tabs
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
 
+    // Ocultar contenidos inactivos
     tabContents.forEach((c, index) => {
       if (index !== activeIndex) {
         c.classList.remove("is-active");
@@ -73,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    // Mostrar el contenido activo y animarlo
     const activeContent = tabContents[activeIndex];
     if (activeContent) {
       activeContent.classList.add("is-active");
@@ -103,6 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    // Animar la ola
     const targetPiston = tabToPistonMap[activeIndex] || 15; 
     gsap.to(waveProxy, {
       pistonIndex: targetPiston,
@@ -111,31 +132,95 @@ document.addEventListener("DOMContentLoaded", () => {
       overwrite: true,
       onUpdate: () => renderWave(waveProxy.pistonIndex)
     });
-  }
 
-  // --- 5. LÓGICA DE AUTOPLAY ---
-  function startAutoPlay() {
-    // Evitamos duplicar timers
-    if (autoPlayTimer) clearInterval(autoPlayTimer);
-    
-    autoPlayTimer = setInterval(() => {
-      currentIndex++; // Pasamos al siguiente tab
-      // Si llegamos al final, volvemos al primero (loop)
-      if (currentIndex >= tabs.length) {
-        currentIndex = 0;
-      }
-      goToTab(currentIndex);
-    }, tiempoAutoplay);
-  }
+    // GESTIONAR LA LÍNEA DE PROGRESO Y AUTOPLAY
+    if (progressTween) progressTween.kill(); // Matamos la animación anterior de la línea
 
-  function stopAutoPlay() {
-    if (autoPlayTimer) {
-      clearInterval(autoPlayTimer);
-      autoPlayTimer = null;
+    if (activeLine) {
+      progressTween = gsap.fromTo(activeLine, 
+        { width: "0%" }, 
+        { 
+          width: "100%", 
+          duration: TIME_PER_TAB, 
+          ease: "none",
+          onComplete: () => {
+            // Cuando la línea llega al 100%, pasa al siguiente tab automáticamente
+            if (!isPaused) {
+              currentIndex = (currentIndex + 1) % tabs.length;
+              goToTab(currentIndex);
+            }
+          }
+        }
+      );
+
+      // Si estaba pausado, congelamos la línea de inmediato
+      if (isPaused) progressTween.pause();
     }
   }
 
-  // --- 6. INTERSECTION OBSERVER (INICIO AL HACER SCROLL) ---
+  // ==========================================
+  // 5. EVENTOS DE LOS CONTROLES MANUALES
+  // ==========================================
+  
+  // Click en un tab específico
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => {
+        hasAnimated = true; 
+        currentIndex = index; 
+        goToTab(currentIndex);
+    });
+  });
+
+  // Botón Siguiente
+  if (nextBtn) {
+    nextBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      currentIndex = (currentIndex + 1) % tabs.length;
+      goToTab(currentIndex);
+    });
+  }
+
+  // Botón Previo
+  if (prevBtn) {
+    prevBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      currentIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      goToTab(currentIndex);
+    });
+  }
+
+  // Botón Play/Pause
+  if (playPauseBtn) {
+    playPauseBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      isPaused = !isPaused;
+
+      // Intercambiar los iconos
+      if (iconPlay && iconPause) {
+        iconPlay.style.display = isPaused ? "block" : "none";
+        iconPause.style.display = isPaused ? "none" : "block";
+      }
+
+      // Pausar o reanudar la línea de progreso
+      if (progressTween) {
+        if (isPaused) {
+          progressTween.pause();
+        } else {
+          progressTween.play();
+        }
+      }
+    });
+  }
+
+  // Estado visual inicial de los iconos
+  if (iconPlay && iconPause) {
+    iconPlay.style.display = isPaused ? "block" : "none";
+    iconPause.style.display = isPaused ? "none" : "block";
+  }
+
+  // ==========================================
+  // 6. INTERSECTION OBSERVER (AUTO-START)
+  // ==========================================
   const observerOptions = {
     root: null, 
     threshold: 0.3 
@@ -145,34 +230,22 @@ document.addEventListener("DOMContentLoaded", () => {
     entries.forEach(entry => {
       if (entry.isIntersecting && !hasAnimated) {
         hasAnimated = true; 
-        currentIndex = 2; // Aseguramos que empiece en la mitad
-        goToTab(currentIndex);
-        startAutoPlay(); // Arrancamos el carrusel automático
+        goToTab(currentIndex); 
         observer.unobserve(entry.target);
       }
     });
   }, observerOptions);
 
-  // --- 7. INICIALIZACIÓN ---
+  // ==========================================
+  // 7. INICIALIZACIÓN
+  // ==========================================
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
-
-  // Interacciones manuales
-  tabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => {
-        hasAnimated = true; 
-        stopAutoPlay(); // Detenemos el autoplay si el usuario interactúa manualmente
-        currentIndex = index; // Actualizamos el índice actual
-        goToTab(currentIndex);
-    });
-  });
 
   if (skillSection) {
     observer.observe(skillSection);
   } else {
-    // Fallback si no se encuentra la sección
-    console.warn("GSAP Anim: No se encontró el contenedor '.skill_component'. Forzando inicio y autoplay.");
+    console.warn("GSAP Anim: No se encontró el contenedor. Forzando inicio.");
     goToTab(currentIndex);
-    startAutoPlay();
   }
 });
