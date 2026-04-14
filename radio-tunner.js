@@ -1,4 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // ==========================================
+  // 1. SELECTORES PRINCIPALES
+  // ==========================================
   const tabs = document.querySelectorAll(".skill_tab-link");
   const freqs = document.querySelectorAll(".skill_freq");
   const tabContents = document.querySelectorAll(".skill_tab-content");
@@ -22,7 +25,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const TIME_PER_TAB = 6; 
   const MOBILE_BREAKPOINT = 767; 
 
-  // --- PREPARAR TEXTOS ---
+  // ==========================================
+  // NUEVO: MEDIR Y APLICAR ANCHO DE LOS TABS
+  // ==========================================
+  function syncRadioWidth() {
+    if (window.innerWidth <= MOBILE_BREAKPOINT) {
+      if (tabs.length > 0 && radioLayout) {
+        // Medimos desde el inicio del primer tab hasta el final del último
+        const firstTab = tabs[0];
+        const lastTab = tabs[tabs.length - 1];
+        const totalWidth = (lastTab.offsetLeft + lastTab.offsetWidth) - firstTab.offsetLeft;
+        
+        // Aplicamos ese ancho exacto al contenedor absoluto de la ola
+        radioLayout.style.width = `${totalWidth}px`;
+      }
+    } else {
+      // En desktop limpiamos el estilo en línea para que CSS haga su trabajo
+      if (radioLayout) radioLayout.style.width = "";
+    }
+  }
+
+  // ==========================================
+  // 2. PREPARAR TEXTOS
+  // ==========================================
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
     elements.forEach(el => {
@@ -51,7 +76,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
-  // --- LÓGICA DE LA OLA ---
+  // ==========================================
+  // 3. LÓGICA DE LA OLA (FRECUENCIAS)
+  // ==========================================
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
     freqs.forEach((piston, idx) => {
@@ -65,7 +92,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentContentAnim = null;
 
-  // --- ANIMACIÓN PRINCIPAL ---
+  // ==========================================
+  // 4. ANIMACIÓN PRINCIPAL Y LÍNEA DE PROGRESO
+  // ==========================================
   function goToTab(activeIndex) {
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
@@ -135,7 +164,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isPaused) progressTween.pause();
     }
 
+    // ==========================================
     // CENTRAR TABS EN MOBILE
+    // ==========================================
     if (window.innerWidth <= MOBILE_BREAKPOINT) { 
       const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
       const centerIndex = Math.floor(tabs.length / 2);
@@ -149,7 +180,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- CONTROLES MANUALES ---
+  // ==========================================
+  // 5. EVENTOS DE LOS CONTROLES MANUALES
+  // ==========================================
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
         hasAnimated = true; 
@@ -197,6 +230,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   window.addEventListener("resize", () => {
+    // Re-medimos el ancho en caso de cambio de orientación
+    syncRadioWidth(); 
+
     if (hasAnimated) {
        if (window.innerWidth <= MOBILE_BREAKPOINT) {
           const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
@@ -211,7 +247,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- INTERSECTION OBSERVER ---
+  // ==========================================
+  // 6. INTERSECTION OBSERVER (AUTO-START)
+  // ==========================================
   const observerOptions = { root: null, threshold: 0.3 };
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -223,6 +261,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }, observerOptions);
 
+  // ==========================================
+  // 7. INICIALIZACIÓN
+  // ==========================================
+  syncRadioWidth(); // Medimos y aplicamos el ancho al inicio
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
 
