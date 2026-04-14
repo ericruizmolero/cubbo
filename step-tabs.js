@@ -24,7 +24,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const ICON_OFFSET_PX = 23; 
   let currentTime = 0;
   let lastTimestamp = performance.now();
-  let isPaused = false;
+  
+  // MODIFICACIÓN: Cambiado a true para iniciar en pausa
+  let isPaused = true; 
   let desktopAnimFrame;
 
   // --- CONFIGURACIÓN MOBILE (SCROLL) ---
@@ -190,6 +192,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
+  // Configuración visual inicial de los iconos
   if (iconPlay && iconPause) {
     iconPlay.style.display = isPaused ? "block" : "none";
     iconPause.style.display = isPaused ? "none" : "block";
