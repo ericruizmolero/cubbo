@@ -14,7 +14,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const iconPause = document.querySelector(".how_icon-pause");
   const activeLine = document.querySelector(".skill_active-tab-line");
   
-  // NUEVO SELECTOR: El layout absoluto de la ola
+  // SELECTORES PARA SINCRONIZAR ANCHOS
+  const tabsLayout = document.querySelector(".skill_tabs-layout");
   const radioLayout = document.querySelector(".skill_radio-layout");
 
   const tabToPistonMap = [1, 8, 15, 22, 29]; 
@@ -29,6 +30,16 @@ document.addEventListener("DOMContentLoaded", () => {
   let progressTween = null;
   const TIME_PER_TAB = 6; // 6 segundos por tab
   const MOBILE_BREAKPOINT = 767; 
+
+  // ==========================================
+  // NUEVO: FUNCIÓN PARA SINCRONIZAR ANCHOS
+  // ==========================================
+  function syncWidths() {
+    if (tabsLayout && radioLayout) {
+      // Leemos el ancho en píxeles del contenedor de los tabs y se lo aplicamos a la ola
+      radioLayout.style.width = `${tabsLayout.offsetWidth}px`;
+    }
+  }
 
   // ==========================================
   // 2. PREPARAR TEXTOS
@@ -159,7 +170,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const centerIndex = Math.floor(tabs.length / 2);
       const shiftX = (centerIndex - activeIndex) * stepDist;
 
-      // Movemos los tabs individuales
       gsap.to(tabs, {
         x: shiftX,
         duration: 0.6,
@@ -167,7 +177,6 @@ document.addEventListener("DOMContentLoaded", () => {
         overwrite: "auto"
       });
 
-      // Movemos también la capa absoluta para que los acompañe
       if (radioLayout) {
         gsap.to(radioLayout, {
           x: shiftX,
@@ -178,7 +187,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
     } else {
-      // En Desktop limpiamos las posiciones
       gsap.to(tabs, { x: 0, duration: 0.4 });
       if (radioLayout) {
         gsap.to(radioLayout, { x: 0, duration: 0.4 });
@@ -235,8 +243,10 @@ document.addEventListener("DOMContentLoaded", () => {
     iconPause.style.display = isPaused ? "none" : "block";
   }
 
-  // EVENTO DE RESIZE: Mantener alineación
+  // EVENTO DE RESIZE: Mantener alineación y anchos sincronizados
   window.addEventListener("resize", () => {
+    syncWidths(); // Vuelve a medir los anchos por si la pantalla rotó o cambió
+
     if (hasAnimated) {
        if (window.innerWidth <= MOBILE_BREAKPOINT) {
           const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
@@ -269,6 +279,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================
   // 7. INICIALIZACIÓN
   // ==========================================
+  syncWidths(); // Medimos y aplicamos el ancho exacto antes de que empiece nada
+  
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
 
