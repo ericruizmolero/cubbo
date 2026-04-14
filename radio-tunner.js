@@ -1,7 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // ==========================================
-  // 1. SELECTORES PRINCIPALES
-  // ==========================================
   const tabs = document.querySelectorAll(".skill_tab-link");
   const freqs = document.querySelectorAll(".skill_freq");
   const tabContents = document.querySelectorAll(".skill_tab-content");
@@ -13,37 +10,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const iconPlay = document.querySelector(".how_icon-play");
   const iconPause = document.querySelector(".how_icon-pause");
   const activeLine = document.querySelector(".skill_active-tab-line");
-  
-  // SELECTORES PARA SINCRONIZAR ANCHOS
-  const tabsLayout = document.querySelector(".skill_tabs-layout");
   const radioLayout = document.querySelector(".skill_radio-layout");
 
   const tabToPistonMap = [1, 8, 15, 22, 29]; 
   const waveProxy = { pistonIndex: 15 }; 
   let hasAnimated = false; 
 
-  // ==========================================
-  // CONFIGURACIÓN DE ESTADO
-  // ==========================================
-  let currentIndex = 2;   // Inicia en la mitad
-  let isPaused = true;    // Inicia en pausa
+  let currentIndex = 2; 
+  let isPaused = true; 
   let progressTween = null;
-  const TIME_PER_TAB = 6; // 6 segundos por tab
+  const TIME_PER_TAB = 6; 
   const MOBILE_BREAKPOINT = 767; 
 
-  // ==========================================
-  // NUEVO: FUNCIÓN PARA SINCRONIZAR ANCHOS
-  // ==========================================
-  function syncWidths() {
-    if (tabsLayout && radioLayout) {
-      // Leemos el ancho en píxeles del contenedor de los tabs y se lo aplicamos a la ola
-      radioLayout.style.width = `${tabsLayout.offsetWidth}px`;
-    }
-  }
-
-  // ==========================================
-  // 2. PREPARAR TEXTOS
-  // ==========================================
+  // --- PREPARAR TEXTOS ---
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
     elements.forEach(el => {
@@ -72,9 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
-  // ==========================================
-  // 3. LÓGICA DE LA OLA (FRECUENCIAS)
-  // ==========================================
+  // --- LÓGICA DE LA OLA ---
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
     freqs.forEach((piston, idx) => {
@@ -88,9 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentContentAnim = null;
 
-  // ==========================================
-  // 4. ANIMACIÓN PRINCIPAL Y LÍNEA DE PROGRESO
-  // ==========================================
+  // --- ANIMACIÓN PRINCIPAL ---
   function goToTab(activeIndex) {
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
@@ -141,9 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
       onUpdate: () => renderWave(waveProxy.pistonIndex)
     });
 
-    // GESTIONAR LA LÍNEA DE PROGRESO
     if (progressTween) progressTween.kill();
-
     if (activeLine) {
       progressTween = gsap.fromTo(activeLine, 
         { width: "0%" }, 
@@ -162,41 +135,21 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isPaused) progressTween.pause();
     }
 
-    // ==========================================
-    // CENTRAR TABS EN MOBILE + ALINEAR OLA ABSOLUTA
-    // ==========================================
+    // CENTRAR TABS EN MOBILE
     if (window.innerWidth <= MOBILE_BREAKPOINT) { 
       const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
       const centerIndex = Math.floor(tabs.length / 2);
       const shiftX = (centerIndex - activeIndex) * stepDist;
 
-      gsap.to(tabs, {
-        x: shiftX,
-        duration: 0.6,
-        ease: "power2.inOut",
-        overwrite: "auto"
-      });
-
-      if (radioLayout) {
-        gsap.to(radioLayout, {
-          x: shiftX,
-          duration: 0.6,
-          ease: "power2.inOut",
-          overwrite: "auto"
-        });
-      }
-
+      gsap.to(tabs, { x: shiftX, duration: 0.6, ease: "power2.inOut", overwrite: "auto" });
+      if (radioLayout) gsap.to(radioLayout, { x: shiftX, duration: 0.6, ease: "power2.inOut", overwrite: "auto" });
     } else {
       gsap.to(tabs, { x: 0, duration: 0.4 });
-      if (radioLayout) {
-        gsap.to(radioLayout, { x: 0, duration: 0.4 });
-      }
+      if (radioLayout) gsap.to(radioLayout, { x: 0, duration: 0.4 });
     }
   }
 
-  // ==========================================
-  // 5. EVENTOS DE LOS CONTROLES MANUALES
-  // ==========================================
+  // --- CONTROLES MANUALES ---
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
         hasAnimated = true; 
@@ -243,10 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
     iconPause.style.display = isPaused ? "none" : "block";
   }
 
-  // EVENTO DE RESIZE: Mantener alineación y anchos sincronizados
   window.addEventListener("resize", () => {
-    syncWidths(); // Vuelve a medir los anchos por si la pantalla rotó o cambió
-
     if (hasAnimated) {
        if (window.innerWidth <= MOBILE_BREAKPOINT) {
           const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
@@ -261,11 +211,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ==========================================
-  // 6. INTERSECTION OBSERVER (AUTO-START)
-  // ==========================================
+  // --- INTERSECTION OBSERVER ---
   const observerOptions = { root: null, threshold: 0.3 };
-
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting && !hasAnimated) {
@@ -276,11 +223,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }, observerOptions);
 
-  // ==========================================
-  // 7. INICIALIZACIÓN
-  // ==========================================
-  syncWidths(); // Medimos y aplicamos el ancho exacto antes de que empiece nada
-  
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
 
