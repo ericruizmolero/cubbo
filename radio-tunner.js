@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let hasAnimated = false; 
 
   let currentIndex = 2;   
-  let isPaused = false; // Empezamos sin pausa para el autoplay de la barra
+  let isPaused = false; 
   let progressTween = null;
   let currentContentAnim = null;
   const TIME_PER_TAB = 6; 
@@ -46,43 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================
-  // 3. PREPARAR TEXTOS (BLUR ANIMATION)
-  // ==========================================
-  function splitTextToSpans(selector) {
-    const elements = document.querySelectorAll(selector);
-    elements.forEach(el => {
-      const text = el.innerText.trim();
-      if (!text) return; 
-      el.innerHTML = '';
-      const words = text.split(' ');
-      
-      words.forEach((word, wordIndex) => {
-        const wordSpan = document.createElement('span');
-        wordSpan.style.display = 'inline-block';
-        wordSpan.style.whiteSpace = 'nowrap';
-        
-        word.split('').forEach(char => {
-          const charSpan = document.createElement('span');
-          charSpan.innerText = char;
-          charSpan.style.display = 'inline-block';
-          // Se añade la clase clave para GSAP
-          charSpan.classList.add('anim-char'); 
-          wordSpan.appendChild(charSpan);
-        });
-        
-        el.appendChild(wordSpan);
-        if (wordIndex < words.length - 1) {
-          el.appendChild(document.createTextNode(' '));
-        }
-      });
-    });
-  }
-
-  // Ejecutamos la división de texto INMEDIATAMENTE
-  splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
-
-  // ==========================================
-  // 4. LÓGICA DE LA OLA (PISTONES)
+  // 3. LÓGICA DE LA OLA (PISTONES)
   // ==========================================
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
@@ -96,14 +60,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================
-  // 5. FUNCIÓN MAESTRA (ANIMACIÓN Y CAMBIO)
+  // 4. FUNCIÓN MAESTRA (ANIMACIÓN Y CAMBIO)
   // ==========================================
   function goToTab(activeIndex) {
-    // Limpiar tabs activos
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
 
-    // Ocultar todos los contenidos
     tabContents.forEach((c, index) => {
       if (index !== activeIndex) {
         c.classList.remove("is-active");
@@ -116,47 +78,44 @@ document.addEventListener("DOMContentLoaded", () => {
       activeContent.classList.add("is-active");
       activeContent.style.display = "grid"; 
       
-      // Buscar elementos específicos dentro del contenido que acabamos de mostrar
-      const chars = activeContent.querySelectorAll('.anim-char');
+      // SOLUCIÓN: Buscamos directamente el h3 y el p completos
+      const textBlocks = activeContent.querySelectorAll('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
       const images = activeContent.querySelectorAll(
         '.skill_bottom-img-abs:not(.is-opacity-0), .skill_mockup:not(.is-opacity-0), .skill_mockup-abs:not(.is-opacity-0)'
       );
 
-      // Matar animación previa para evitar cruces
       if (currentContentAnim) currentContentAnim.kill();
       currentContentAnim = gsap.timeline();
 
-      // ANIMACIÓN SMOOTH BLUR + OPACITY PARA TEXTOS
-      if (chars.length > 0) {
-        currentContentAnim.fromTo(chars, 
+      // ANIMACIÓN BLUR PARA BLOQUES DE TEXTO COMPLETOS
+      if (textBlocks.length > 0) {
+        currentContentAnim.fromTo(textBlocks, 
           { 
             opacity: 0, 
-            filter: "blur(12px)", 
-            y: 5 // Un sutil desplazamiento vertical mejora la sensación
+            filter: "blur(10px)", 
+            y: 15 // Entran desde un poquito más abajo
           }, 
           { 
             opacity: 1, 
             filter: "blur(0px)", 
             y: 0,
-            duration: 0.6, 
-            stagger: 0.015, // Stagger ligero para efecto cascada
-            ease: "power2.out" 
+            duration: 0.8, 
+            stagger: 0.15, // Primero entra el h3, luego el p
+            ease: "power3.out" 
           }, 
-          0 // Inicia en el segundo 0 de la línea de tiempo
+          0
         );
       }
 
-      // ANIMACIÓN PARA IMÁGENES
       if (images.length > 0) {
         currentContentAnim.fromTo(images,
           { opacity: 0, scale: 0.95 },
           { opacity: 1, scale: 1, duration: 0.8, stagger: 0.1, ease: "power2.inOut" },
-          0.1 // Inicia un poquito después que el texto
+          0.1
         );
       }
     }
 
-    // Animación de la Ola (Pistones)
     const targetPiston = tabToPistonMap[activeIndex] || 15; 
     gsap.to(waveProxy, {
       pistonIndex: targetPiston,
@@ -166,7 +125,6 @@ document.addEventListener("DOMContentLoaded", () => {
       onUpdate: () => renderWave(waveProxy.pistonIndex)
     });
 
-    // Lógica Autoplay (Barra de progreso)
     if (progressTween) progressTween.kill();
     if (activeLine) {
       progressTween = gsap.fromTo(activeLine, 
@@ -186,7 +144,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isPaused) progressTween.pause();
     }
 
-    // Centrado visual en Mobile
     if (window.innerWidth <= MOBILE_BREAKPOINT) { 
       const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
       const centerIndex = Math.floor(tabs.length / 2);
@@ -198,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================
-  // 6. EVENTOS (CLICKS Y CONTROLES)
+  // 5. EVENTOS (CLICKS Y CONTROLES)
   // ==========================================
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
@@ -229,13 +186,11 @@ document.addEventListener("DOMContentLoaded", () => {
       e.preventDefault();
       isPaused = !isPaused;
       
-      // Control visual de Iconos Play/Pause
       if (iconPlay && iconPause) {
         iconPlay.style.display = isPaused ? "block" : "none";
         iconPause.style.display = isPaused ? "none" : "block";
       }
       
-      // Control lógico del Autoplay
       if (progressTween) {
         if (isPaused) progressTween.pause();
         else progressTween.play();
@@ -258,7 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ==========================================
-  // 7. INICIALIZACIÓN Y OBSERVER
+  // 6. INICIALIZACIÓN Y OBSERVER
   // ==========================================
   const observerOptions = { root: null, threshold: 0.3 };
   const observer = new IntersectionObserver((entries) => {
@@ -272,17 +227,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }, observerOptions);
 
-  // Configuración previa al inicio
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
 
-  // Botones Play/Pause estado inicial
   if (iconPlay && iconPause) {
     iconPlay.style.display = isPaused ? "block" : "none";
     iconPause.style.display = isPaused ? "none" : "block";
   }
 
-  // Arrancar!
   if (skillSection) {
     observer.observe(skillSection);
   } else {
