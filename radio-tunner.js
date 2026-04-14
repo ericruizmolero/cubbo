@@ -109,9 +109,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (images.length > 0) {
         currentContentAnim.fromTo(images,
-          { opacity: 0, scale: 1 },
-          { opacity: 1, scale: 1, duration: 0.8, stagger: 0.1, ease: "power2.out" },
-          0.1
+          { opacity: 0, scale: 0.98 },
+          { opacity: 1, scale: 1, duration: 0.8, stagger: 0.3, ease: "power2.inOut" },
+          0.2
         );
       }
     }
