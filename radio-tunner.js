@@ -3,20 +3,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const tabs = document.querySelectorAll(".skill_tab-link");
   const freqs = document.querySelectorAll(".skill_freq");
   const tabContents = document.querySelectorAll(".skill_tab-content");
-  
-  // ASEGÚRATE de que esta clase sea la del contenedor que envuelve toda la sección
   const skillSection = document.querySelector(".skill_component"); 
   
   const tabToPistonMap = [1, 8, 15, 22, 29]; 
   const waveProxy = { pistonIndex: 15 }; 
   let hasAnimated = false; 
 
+  // --- NUEVAS VARIABLES PARA AUTOPLAY ---
+  let autoPlayTimer = null;
+  let currentIndex = 2; // Empezamos en el index 2 (la mitad)
+  const tiempoAutoplay = 4000; // 4000 = 4 segundos. Cámbialo si lo quieres más rápido o lento.
+
   // --- 2. PREPARAR TEXTOS ---
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
     elements.forEach(el => {
       const text = el.innerText.trim();
-      if (!text) return; // Evita errores si el elemento está vacío
+      if (!text) return; 
       
       el.innerHTML = '';
       const words = text.split(' ');
@@ -42,7 +45,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Solo ejecuta si encuentra los elementos
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
   // --- 3. LÓGICA DE LA OLA ---
@@ -101,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    const targetPiston = tabToPistonMap[activeIndex] || 15; // Fallback por si el índice no existe
+    const targetPiston = tabToPistonMap[activeIndex] || 15; 
     gsap.to(waveProxy, {
       pistonIndex: targetPiston,
       duration: 0.6, 
@@ -111,7 +113,29 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- 5. INTERSECTION OBSERVER (AUTO-START) ---
+  // --- 5. LÓGICA DE AUTOPLAY ---
+  function startAutoPlay() {
+    // Evitamos duplicar timers
+    if (autoPlayTimer) clearInterval(autoPlayTimer);
+    
+    autoPlayTimer = setInterval(() => {
+      currentIndex++; // Pasamos al siguiente tab
+      // Si llegamos al final, volvemos al primero (loop)
+      if (currentIndex >= tabs.length) {
+        currentIndex = 0;
+      }
+      goToTab(currentIndex);
+    }, tiempoAutoplay);
+  }
+
+  function stopAutoPlay() {
+    if (autoPlayTimer) {
+      clearInterval(autoPlayTimer);
+      autoPlayTimer = null;
+    }
+  }
+
+  // --- 6. INTERSECTION OBSERVER (INICIO AL HACER SCROLL) ---
   const observerOptions = {
     root: null, 
     threshold: 0.3 
@@ -121,31 +145,34 @@ document.addEventListener("DOMContentLoaded", () => {
     entries.forEach(entry => {
       if (entry.isIntersecting && !hasAnimated) {
         hasAnimated = true; 
-        goToTab(2); // Inicia en la mitad
-        observer.unobserve(entry.target); // Dejamos de observar para ahorrar recursos
+        currentIndex = 2; // Aseguramos que empiece en la mitad
+        goToTab(currentIndex);
+        startAutoPlay(); // Arrancamos el carrusel automático
+        observer.unobserve(entry.target);
       }
     });
   }, observerOptions);
 
-  // --- 6. INICIALIZACIÓN Y MEDIDAS DE SEGURIDAD ---
-  // Estado inicial off-screen
+  // --- 7. INICIALIZACIÓN ---
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
 
   // Interacciones manuales
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
-        hasAnimated = true; // Cancela el auto-start si el usuario hace click antes
-        goToTab(index);
+        hasAnimated = true; 
+        stopAutoPlay(); // Detenemos el autoplay si el usuario interactúa manualmente
+        currentIndex = index; // Actualizamos el índice actual
+        goToTab(currentIndex);
     });
   });
 
-  // MEDIDA DE SEGURIDAD: Si la sección existe, la observamos. 
-  // Si no existe (error tipográfico en la clase o cambio en el HTML), forzamos el inicio para no romper la web.
   if (skillSection) {
     observer.observe(skillSection);
   } else {
-    console.warn("GSAP Anim: No se encontró el contenedor '.skill_component'. Forzando inicio automático.");
-    goToTab(2);
+    // Fallback si no se encuentra la sección
+    console.warn("GSAP Anim: No se encontró el contenedor '.skill_component'. Forzando inicio y autoplay.");
+    goToTab(currentIndex);
+    startAutoPlay();
   }
 });
