@@ -20,14 +20,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let hasAnimated = false; 
 
   let currentIndex = 2;   
-  let isPaused = false; // Cambiado a false para que el autoplay ruede solo
+  let isPaused = false; // Empezamos sin pausa para el autoplay de la barra
   let progressTween = null;
   let currentContentAnim = null;
   const TIME_PER_TAB = 6; 
   const MOBILE_BREAKPOINT = 767; 
 
   // ==========================================
-  // 2. UTILIDADES (ANCHO Y SPLIT TEXT)
+  // 2. UTILIDADES (ANCHO RADIO)
   // ==========================================
   function syncRadioWidth() {
     if (window.innerWidth <= MOBILE_BREAKPOINT) {
@@ -45,6 +45,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // ==========================================
+  // 3. PREPARAR TEXTOS (BLUR ANIMATION)
+  // ==========================================
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
     elements.forEach(el => {
@@ -52,17 +55,21 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!text) return; 
       el.innerHTML = '';
       const words = text.split(' ');
+      
       words.forEach((word, wordIndex) => {
         const wordSpan = document.createElement('span');
         wordSpan.style.display = 'inline-block';
         wordSpan.style.whiteSpace = 'nowrap';
+        
         word.split('').forEach(char => {
           const charSpan = document.createElement('span');
           charSpan.innerText = char;
           charSpan.style.display = 'inline-block';
+          // Se añade la clase clave para GSAP
           charSpan.classList.add('anim-char'); 
           wordSpan.appendChild(charSpan);
         });
+        
         el.appendChild(wordSpan);
         if (wordIndex < words.length - 1) {
           el.appendChild(document.createTextNode(' '));
@@ -71,10 +78,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Ejecutamos la división de texto INMEDIATAMENTE
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
   // ==========================================
-  // 3. LÓGICA DE LA OLA
+  // 4. LÓGICA DE LA OLA (PISTONES)
   // ==========================================
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
@@ -88,13 +96,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================
-  // 4. FUNCIÓN MAESTRA (ANIMACIÓN SMOOTH)
+  // 5. FUNCIÓN MAESTRA (ANIMACIÓN Y CAMBIO)
   // ==========================================
   function goToTab(activeIndex) {
-    // Actualizar Tabs
+    // Limpiar tabs activos
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
 
+    // Ocultar todos los contenidos
     tabContents.forEach((c, index) => {
       if (index !== activeIndex) {
         c.classList.remove("is-active");
@@ -107,50 +116,57 @@ document.addEventListener("DOMContentLoaded", () => {
       activeContent.classList.add("is-active");
       activeContent.style.display = "grid"; 
       
+      // Buscar elementos específicos dentro del contenido que acabamos de mostrar
       const chars = activeContent.querySelectorAll('.anim-char');
       const images = activeContent.querySelectorAll(
         '.skill_bottom-img-abs:not(.is-opacity-0), .skill_mockup:not(.is-opacity-0), .skill_mockup-abs:not(.is-opacity-0)'
       );
 
+      // Matar animación previa para evitar cruces
       if (currentContentAnim) currentContentAnim.kill();
       currentContentAnim = gsap.timeline();
 
-      // EFECTO BLUR MEJORADO: 
-      // Aumentamos ligeramente el duration y el stagger para que se aprecie la fluidez
+      // ANIMACIÓN SMOOTH BLUR + OPACITY PARA TEXTOS
       if (chars.length > 0) {
         currentContentAnim.fromTo(chars, 
-          { opacity: 0, filter: "blur(12px)", y: 5 }, 
+          { 
+            opacity: 0, 
+            filter: "blur(12px)", 
+            y: 5 // Un sutil desplazamiento vertical mejora la sensación
+          }, 
           { 
             opacity: 1, 
             filter: "blur(0px)", 
             y: 0,
-            duration: 0.8, // Más lento = más suave
-            stagger: 0.01, 
-            ease: "expo.out" // Curva de aceleración más premium
+            duration: 0.6, 
+            stagger: 0.015, // Stagger ligero para efecto cascada
+            ease: "power2.out" 
           }, 
-          0
+          0 // Inicia en el segundo 0 de la línea de tiempo
         );
       }
 
+      // ANIMACIÓN PARA IMÁGENES
       if (images.length > 0) {
         currentContentAnim.fromTo(images,
           { opacity: 0, scale: 0.95 },
-          { opacity: 1, scale: 1, duration: 1, ease: "power3.out" },
-          0.2 // Empieza un poco después del texto
+          { opacity: 1, scale: 1, duration: 0.8, stagger: 0.1, ease: "power2.inOut" },
+          0.1 // Inicia un poquito después que el texto
         );
       }
     }
 
-    // Animación de la Ola
+    // Animación de la Ola (Pistones)
     const targetPiston = tabToPistonMap[activeIndex] || 15; 
     gsap.to(waveProxy, {
       pistonIndex: targetPiston,
       duration: 0.8, 
       ease: "power2.inOut", 
+      overwrite: true,
       onUpdate: () => renderWave(waveProxy.pistonIndex)
     });
 
-    // Barra de Progreso (Autoplay)
+    // Lógica Autoplay (Barra de progreso)
     if (progressTween) progressTween.kill();
     if (activeLine) {
       progressTween = gsap.fromTo(activeLine, 
@@ -170,19 +186,19 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isPaused) progressTween.pause();
     }
 
-    // Centrado Mobile
+    // Centrado visual en Mobile
     if (window.innerWidth <= MOBILE_BREAKPOINT) { 
       const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
       const centerIndex = Math.floor(tabs.length / 2);
       const shiftX = (centerIndex - activeIndex) * stepDist;
-      gsap.to([tabs, radioLayout], { x: shiftX, duration: 0.8, ease: "power3.inOut" });
+      gsap.to([tabs, radioLayout], { x: shiftX, duration: 0.6, ease: "power2.inOut", overwrite: "auto" });
     } else {
       gsap.to([tabs, radioLayout], { x: 0, duration: 0.4 });
     }
   }
 
   // ==========================================
-  // 5. EVENTOS
+  // 6. EVENTOS (CLICKS Y CONTROLES)
   // ==========================================
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
@@ -212,10 +228,14 @@ document.addEventListener("DOMContentLoaded", () => {
     playPauseBtn.addEventListener("click", (e) => {
       e.preventDefault();
       isPaused = !isPaused;
+      
+      // Control visual de Iconos Play/Pause
       if (iconPlay && iconPause) {
         iconPlay.style.display = isPaused ? "block" : "none";
         iconPause.style.display = isPaused ? "none" : "block";
       }
+      
+      // Control lógico del Autoplay
       if (progressTween) {
         if (isPaused) progressTween.pause();
         else progressTween.play();
@@ -238,27 +258,35 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ==========================================
-  // 6. INICIALIZACIÓN (OBSERVER)
+  // 7. INICIALIZACIÓN Y OBSERVER
   // ==========================================
+  const observerOptions = { root: null, threshold: 0.3 };
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting && !hasAnimated) {
         hasAnimated = true; 
-        syncRadioWidth();
+        syncRadioWidth(); 
         goToTab(currentIndex); 
         observer.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.3 });
+  }, observerOptions);
 
-  // Estado inicial
+  // Configuración previa al inicio
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
+
+  // Botones Play/Pause estado inicial
   if (iconPlay && iconPause) {
     iconPlay.style.display = isPaused ? "block" : "none";
     iconPause.style.display = isPaused ? "none" : "block";
   }
 
-  if (skillSection) observer.observe(skillSection);
-  else { syncRadioWidth(); goToTab(currentIndex); }
+  // Arrancar!
+  if (skillSection) {
+    observer.observe(skillSection);
+  } else {
+    syncRadioWidth();
+    goToTab(currentIndex);
+  }
 });
