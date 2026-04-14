@@ -13,18 +13,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const iconPlay = document.querySelector(".how_icon-play");
   const iconPause = document.querySelector(".how_icon-pause");
   const activeLine = document.querySelector(".skill_active-tab-line");
+  
+  // NUEVO SELECTOR: El layout absoluto de la ola
+  const radioLayout = document.querySelector(".skill_radio-layout");
 
   const tabToPistonMap = [1, 8, 15, 22, 29]; 
   const waveProxy = { pistonIndex: 15 }; 
   let hasAnimated = false; 
 
   // ==========================================
-  // CONFIGURACIÓN SOLICITADA
+  // CONFIGURACIÓN DE ESTADO
   // ==========================================
-  let currentIndex = 2; // Inicia en la mitad
-  let isPaused = true;  // <--- CAMBIO: Ahora empieza pausado
+  let currentIndex = 2;   // Inicia en la mitad
+  let isPaused = true;    // Inicia en pausa
   let progressTween = null;
-  const TIME_PER_TAB = 6; // <--- CAMBIO: 6 segundos por tab
+  const TIME_PER_TAB = 6; // 6 segundos por tab
+  const MOBILE_BREAKPOINT = 767; 
 
   // ==========================================
   // 2. PREPARAR TEXTOS
@@ -144,16 +148,47 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
       );
-
-      // Si el estado global es pausado, pausamos la línea recién creada
       if (isPaused) progressTween.pause();
+    }
+
+    // ==========================================
+    // CENTRAR TABS EN MOBILE + ALINEAR OLA ABSOLUTA
+    // ==========================================
+    if (window.innerWidth <= MOBILE_BREAKPOINT) { 
+      const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
+      const centerIndex = Math.floor(tabs.length / 2);
+      const shiftX = (centerIndex - activeIndex) * stepDist;
+
+      // Movemos los tabs individuales
+      gsap.to(tabs, {
+        x: shiftX,
+        duration: 0.6,
+        ease: "power2.inOut",
+        overwrite: "auto"
+      });
+
+      // Movemos también la capa absoluta para que los acompañe
+      if (radioLayout) {
+        gsap.to(radioLayout, {
+          x: shiftX,
+          duration: 0.6,
+          ease: "power2.inOut",
+          overwrite: "auto"
+        });
+      }
+
+    } else {
+      // En Desktop limpiamos las posiciones
+      gsap.to(tabs, { x: 0, duration: 0.4 });
+      if (radioLayout) {
+        gsap.to(radioLayout, { x: 0, duration: 0.4 });
+      }
     }
   }
 
   // ==========================================
   // 5. EVENTOS DE LOS CONTROLES MANUALES
   // ==========================================
-  
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
         hasAnimated = true; 
@@ -195,11 +230,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Sincronización inicial de iconos según el estado de pausa
   if (iconPlay && iconPause) {
     iconPlay.style.display = isPaused ? "block" : "none";
     iconPause.style.display = isPaused ? "none" : "block";
   }
+
+  // EVENTO DE RESIZE: Mantener alineación
+  window.addEventListener("resize", () => {
+    if (hasAnimated) {
+       if (window.innerWidth <= MOBILE_BREAKPOINT) {
+          const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
+          const centerIndex = Math.floor(tabs.length / 2);
+          const shiftX = (centerIndex - currentIndex) * stepDist;
+          gsap.set(tabs, { x: shiftX });
+          if (radioLayout) gsap.set(radioLayout, { x: shiftX });
+       } else {
+          gsap.set(tabs, { x: 0 });
+          if (radioLayout) gsap.set(radioLayout, { x: 0 });
+       }
+    }
+  });
 
   // ==========================================
   // 6. INTERSECTION OBSERVER (AUTO-START)
