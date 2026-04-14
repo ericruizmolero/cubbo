@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   // ==========================================
-  // 1. SELECTORES PRINCIPALES
+  // 1. SELECTORES Y CONFIGURACIÓN
   // ==========================================
   const tabs = document.querySelectorAll(".skill_tab-link");
   const freqs = document.querySelectorAll(".skill_freq");
@@ -19,28 +19,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const waveProxy = { pistonIndex: 15 }; 
   let hasAnimated = false; 
 
-  // CONFIGURACIÓN DE ESTADO
   let currentIndex = 2;   
-  let isPaused = true;    
+  let isPaused = false; // Cambiado a false para que el autoplay ruede solo
   let progressTween = null;
+  let currentContentAnim = null;
   const TIME_PER_TAB = 6; 
   const MOBILE_BREAKPOINT = 767; 
 
   // ==========================================
-  // 2. SINCRONIZACIÓN DE ANCHOS (TOTAL - 8REM)
+  // 2. UTILIDADES (ANCHO Y SPLIT TEXT)
   // ==========================================
   function syncRadioWidth() {
     if (window.innerWidth <= MOBILE_BREAKPOINT) {
       if (tabs.length > 0 && radioLayout) {
-        // Obtenemos valor de 1rem dinámicamente
         const remValue = parseFloat(getComputedStyle(document.documentElement).fontSize);
-        const adjustment = 5 * remValue; // 8rem en píxeles
-
+        const adjustment = 5 * remValue; 
         const firstTab = tabs[0];
         const lastTab = tabs[tabs.length - 1];
         let totalWidth = (lastTab.offsetLeft + lastTab.offsetWidth) - firstTab.offsetLeft;
-        
-        // Aplicamos la resta
         const finalWidth = Math.max(0, totalWidth - adjustment);
         radioLayout.style.width = `${finalWidth}px`;
       }
@@ -49,9 +45,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // ==========================================
-  // 3. PREPARAR TEXTOS (SPLIT WORDS/CHARS)
-  // ==========================================
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
     elements.forEach(el => {
@@ -81,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
   // ==========================================
-  // 4. LÓGICA DE LA OLA (FRECUENCIAS)
+  // 3. LÓGICA DE LA OLA
   // ==========================================
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
@@ -94,12 +87,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  let currentContentAnim = null;
-
   // ==========================================
-  // 5. FUNCIÓN MAESTRA: CAMBIO DE TAB
+  // 4. FUNCIÓN MAESTRA (ANIMACIÓN SMOOTH)
   // ==========================================
   function goToTab(activeIndex) {
+    // Actualizar Tabs
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
 
@@ -123,33 +115,42 @@ document.addEventListener("DOMContentLoaded", () => {
       if (currentContentAnim) currentContentAnim.kill();
       currentContentAnim = gsap.timeline();
 
+      // EFECTO BLUR MEJORADO: 
+      // Aumentamos ligeramente el duration y el stagger para que se aprecie la fluidez
       if (chars.length > 0) {
         currentContentAnim.fromTo(chars, 
-          { opacity: 0, filter: "blur(10px)" }, 
-          { opacity: 1, filter: "blur(0px)", duration: 0.4, stagger: 0.005, ease: "power2.out" }, 
+          { opacity: 0, filter: "blur(12px)", y: 5 }, 
+          { 
+            opacity: 1, 
+            filter: "blur(0px)", 
+            y: 0,
+            duration: 0.8, // Más lento = más suave
+            stagger: 0.01, 
+            ease: "expo.out" // Curva de aceleración más premium
+          }, 
           0
         );
       }
 
       if (images.length > 0) {
         currentContentAnim.fromTo(images,
-          { opacity: 0 },
-          { opacity: 1, duration: 0.6, stagger: 0.1, ease: "power2.inOut" },
-          0
+          { opacity: 0, scale: 0.95 },
+          { opacity: 1, scale: 1, duration: 1, ease: "power3.out" },
+          0.2 // Empieza un poco después del texto
         );
       }
     }
 
+    // Animación de la Ola
     const targetPiston = tabToPistonMap[activeIndex] || 15; 
     gsap.to(waveProxy, {
       pistonIndex: targetPiston,
-      duration: 0.6, 
+      duration: 0.8, 
       ease: "power2.inOut", 
-      overwrite: true,
       onUpdate: () => renderWave(waveProxy.pistonIndex)
     });
 
-    // Barra de Progreso
+    // Barra de Progreso (Autoplay)
     if (progressTween) progressTween.kill();
     if (activeLine) {
       progressTween = gsap.fromTo(activeLine, 
@@ -169,26 +170,25 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isPaused) progressTween.pause();
     }
 
-    // Centrado en Mobile
+    // Centrado Mobile
     if (window.innerWidth <= MOBILE_BREAKPOINT) { 
       const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
       const centerIndex = Math.floor(tabs.length / 2);
       const shiftX = (centerIndex - activeIndex) * stepDist;
-
-      gsap.to([tabs, radioLayout], { x: shiftX, duration: 0.6, ease: "power2.inOut", overwrite: "auto" });
+      gsap.to([tabs, radioLayout], { x: shiftX, duration: 0.8, ease: "power3.inOut" });
     } else {
       gsap.to([tabs, radioLayout], { x: 0, duration: 0.4 });
     }
   }
 
   // ==========================================
-  // 6. EVENTOS Y CONTROLES
+  // 5. EVENTOS
   // ==========================================
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
-        hasAnimated = true; 
-        currentIndex = index; 
-        goToTab(currentIndex);
+      hasAnimated = true; 
+      currentIndex = index; 
+      goToTab(currentIndex);
     });
   });
 
@@ -223,12 +223,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Sincronizar iconos iniciales
-  if (iconPlay && iconPause) {
-    iconPlay.style.display = isPaused ? "block" : "none";
-    iconPause.style.display = isPaused ? "none" : "block";
-  }
-
   window.addEventListener("resize", () => {
     syncRadioWidth(); 
     if (hasAnimated) {
@@ -244,27 +238,27 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ==========================================
-  // 7. INICIALIZACIÓN (OBSERVER)
+  // 6. INICIALIZACIÓN (OBSERVER)
   // ==========================================
-  const observerOptions = { root: null, threshold: 0.3 };
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting && !hasAnimated) {
         hasAnimated = true; 
-        syncRadioWidth(); // Medir justo antes de mostrar
+        syncRadioWidth();
         goToTab(currentIndex); 
         observer.unobserve(entry.target);
       }
     });
-  }, observerOptions);
+  }, { threshold: 0.3 });
 
+  // Estado inicial
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
-
-  if (skillSection) {
-    observer.observe(skillSection);
-  } else {
-    syncRadioWidth();
-    goToTab(currentIndex);
+  if (iconPlay && iconPause) {
+    iconPlay.style.display = isPaused ? "block" : "none";
+    iconPause.style.display = isPaused ? "none" : "block";
   }
+
+  if (skillSection) observer.observe(skillSection);
+  else { syncRadioWidth(); goToTab(currentIndex); }
 });
