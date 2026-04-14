@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (tabs.length > 0 && radioLayout) {
         // Obtenemos valor de 1rem dinámicamente
         const remValue = parseFloat(getComputedStyle(document.documentElement).fontSize);
-        const adjustment = 8 * remValue; // 8rem en píxeles
+        const adjustment = 5 * remValue; // 8rem en píxeles
 
         const firstTab = tabs[0];
         const lastTab = tabs[tabs.length - 1];
