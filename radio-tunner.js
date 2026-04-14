@@ -1,29 +1,31 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // 1. SELECTORES PRINCIPALES
   const tabs = document.querySelectorAll(".skill_tab-link");
   const freqs = document.querySelectorAll(".skill_freq");
   const tabContents = document.querySelectorAll(".skill_tab-content");
   
+  // ASEGÚRATE de que esta clase sea la del contenedor que envuelve toda la sección
+  const skillSection = document.querySelector(".skill_component"); 
+  
   const tabToPistonMap = [1, 8, 15, 22, 29]; 
   const waveProxy = { pistonIndex: 15 }; 
+  let hasAnimated = false; 
 
-  // --- 1. PREPARAR TEXTOS (RESPETANDO PALABRAS) ---
+  // --- 2. PREPARAR TEXTOS ---
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
     elements.forEach(el => {
-      // Guardamos el texto y vaciamos el contenedor
       const text = el.innerText.trim();
-      el.innerHTML = '';
+      if (!text) return; // Evita errores si el elemento está vacío
       
-      // Separamos por palabras primero
+      el.innerHTML = '';
       const words = text.split(' ');
       
       words.forEach((word, wordIndex) => {
-        // Creamos un contenedor para la palabra entera para evitar que se corte
         const wordSpan = document.createElement('span');
         wordSpan.style.display = 'inline-block';
-        wordSpan.style.whiteSpace = 'nowrap'; // Obliga a que la palabra no se rompa
+        wordSpan.style.whiteSpace = 'nowrap';
         
-        // Ahora sí, separamos la palabra por letras
         word.split('').forEach(char => {
           const charSpan = document.createElement('span');
           charSpan.innerText = char;
@@ -31,22 +33,19 @@ document.addEventListener("DOMContentLoaded", () => {
           charSpan.classList.add('anim-char'); 
           wordSpan.appendChild(charSpan);
         });
-
-        // Añadimos la palabra al elemento principal
+        
         el.appendChild(wordSpan);
-
-        // Añadimos un espacio después de la palabra (excepto en la última)
         if (wordIndex < words.length - 1) {
-          const spaceNode = document.createTextNode(' ');
-          el.appendChild(spaceNode);
+          el.appendChild(document.createTextNode(' '));
         }
       });
     });
   }
 
+  // Solo ejecuta si encuentra los elementos
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
-  // --- 2. LÓGICA DE LA OLA ---
+  // --- 3. LÓGICA DE LA OLA ---
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
     freqs.forEach((piston, idx) => {
@@ -60,13 +59,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentContentAnim = null;
 
-  // --- 3. ANIMACIÓN PRINCIPAL ---
+  // --- 4. ANIMACIÓN PRINCIPAL ---
   function goToTab(activeIndex) {
-    // Clases activas de los tabs
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
 
-    // Limpieza de contenidos
     tabContents.forEach((c, index) => {
       if (index !== activeIndex) {
         c.classList.remove("is-active");
@@ -74,7 +71,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Setup del nuevo contenido
     const activeContent = tabContents[activeIndex];
     if (activeContent) {
       activeContent.classList.add("is-active");
@@ -88,41 +84,24 @@ document.addEventListener("DOMContentLoaded", () => {
       if (currentContentAnim) currentContentAnim.kill();
       currentContentAnim = gsap.timeline();
 
-      // Animación de Textos (Comienza en el segundo 0 de la timeline)
-      currentContentAnim.fromTo(chars, 
-        { 
-          opacity: 0, 
-          filter: "blur(10px)", 
-          y: 0
-        }, 
-        { 
-          opacity: 1, 
-          filter: "blur(0px)", 
-          y: 0, 
-          duration: 0.4, 
-          stagger: 0.005, 
-          ease: "power2.out" 
-        }, 
-        0 // <--- Este '0' le dice a GSAP: "Inicia esta animación al principio del todo"
-      );
+      if (chars.length > 0) {
+        currentContentAnim.fromTo(chars, 
+          { opacity: 0, filter: "blur(10px)" }, 
+          { opacity: 1, filter: "blur(0px)", duration: 0.4, stagger: 0.005, ease: "power2.out" }, 
+          0
+        );
+      }
 
-      // Animación de Imágenes (Comienza también en el segundo 0)
       if (images.length > 0) {
         currentContentAnim.fromTo(images,
           { opacity: 0 },
-          { 
-            opacity: 1, 
-            duration: 0.6, 
-            stagger: 0.1, 
-            ease: "power2.inOut" 
-          },
-          0 // <--- Este '0' asegura que arranque EXACTAMENTE a la vez que los textos
+          { opacity: 1, duration: 0.6, stagger: 0.1, ease: "power2.inOut" },
+          0
         );
       }
     }
 
-    // Animamos la ola del Radio Tuner en paralelo
-    const targetPiston = tabToPistonMap[activeIndex];
+    const targetPiston = tabToPistonMap[activeIndex] || 15; // Fallback por si el índice no existe
     gsap.to(waveProxy, {
       pistonIndex: targetPiston,
       duration: 0.6, 
@@ -132,15 +111,41 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- 4. INICIALIZACIÓN ---
+  // --- 5. INTERSECTION OBSERVER (AUTO-START) ---
+  const observerOptions = {
+    root: null, 
+    threshold: 0.3 
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !hasAnimated) {
+        hasAnimated = true; 
+        goToTab(2); // Inicia en la mitad
+        observer.unobserve(entry.target); // Dejamos de observar para ahorrar recursos
+      }
+    });
+  }, observerOptions);
+
+  // --- 6. INICIALIZACIÓN Y MEDIDAS DE SEGURIDAD ---
+  // Estado inicial off-screen
+  renderWave(waveProxy.pistonIndex);
+  tabContents.forEach(c => c.style.display = "none");
+
+  // Interacciones manuales
   tabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => goToTab(index));
+    tab.addEventListener("click", () => {
+        hasAnimated = true; // Cancela el auto-start si el usuario hace click antes
+        goToTab(index);
+    });
   });
 
-  // Estado Inicial
-  renderWave(waveProxy.pistonIndex);
-  
-  // Ocultamos todos y disparamos el central
-  tabContents.forEach(c => c.style.display = "none");
-  goToTab(2); 
+  // MEDIDA DE SEGURIDAD: Si la sección existe, la observamos. 
+  // Si no existe (error tipográfico en la clase o cambio en el HTML), forzamos el inicio para no romper la web.
+  if (skillSection) {
+    observer.observe(skillSection);
+  } else {
+    console.warn("GSAP Anim: No se encontró el contenedor '.skill_component'. Forzando inicio automático.");
+    goToTab(2);
+  }
 });
