@@ -7,7 +7,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const tabContents = document.querySelectorAll(".skill_tab-content");
   const skillSection = document.querySelector(".skill_component"); 
 
-  // Nuevos selectores de controles
   const prevBtn = document.querySelector(".skill_tabs-prev");
   const nextBtn = document.querySelector(".skill_tabs-next");
   const playPauseBtn = document.querySelector(".skill_tabs-playpause");
@@ -19,11 +18,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const waveProxy = { pistonIndex: 15 }; 
   let hasAnimated = false; 
 
-  // Variables de Estado para Autoplay
+  // ==========================================
+  // CONFIGURACIÓN SOLICITADA
+  // ==========================================
   let currentIndex = 2; // Inicia en la mitad
-  let isPaused = false; 
+  let isPaused = true;  // <--- CAMBIO: Ahora empieza pausado
   let progressTween = null;
-  const TIME_PER_TAB = 4; // Segundos que tarda en llenarse la línea y cambiar de tab
+  const TIME_PER_TAB = 6; // <--- CAMBIO: 6 segundos por tab
 
   // ==========================================
   // 2. PREPARAR TEXTOS
@@ -33,15 +34,12 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.forEach(el => {
       const text = el.innerText.trim();
       if (!text) return; 
-      
       el.innerHTML = '';
       const words = text.split(' ');
-      
       words.forEach((word, wordIndex) => {
         const wordSpan = document.createElement('span');
         wordSpan.style.display = 'inline-block';
         wordSpan.style.whiteSpace = 'nowrap';
-        
         word.split('').forEach(char => {
           const charSpan = document.createElement('span');
           charSpan.innerText = char;
@@ -49,7 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
           charSpan.classList.add('anim-char'); 
           wordSpan.appendChild(charSpan);
         });
-        
         el.appendChild(wordSpan);
         if (wordIndex < words.length - 1) {
           el.appendChild(document.createTextNode(' '));
@@ -80,11 +77,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // 4. ANIMACIÓN PRINCIPAL Y LÍNEA DE PROGRESO
   // ==========================================
   function goToTab(activeIndex) {
-    // Actualizar visualmente los tabs
     tabs.forEach(t => t.classList.remove("is-active"));
     if (tabs[activeIndex]) tabs[activeIndex].classList.add("is-active");
 
-    // Ocultar contenidos inactivos
     tabContents.forEach((c, index) => {
       if (index !== activeIndex) {
         c.classList.remove("is-active");
@@ -92,7 +87,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Mostrar el contenido activo y animarlo
     const activeContent = tabContents[activeIndex];
     if (activeContent) {
       activeContent.classList.add("is-active");
@@ -123,7 +117,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Animar la ola
     const targetPiston = tabToPistonMap[activeIndex] || 15; 
     gsap.to(waveProxy, {
       pistonIndex: targetPiston,
@@ -133,8 +126,8 @@ document.addEventListener("DOMContentLoaded", () => {
       onUpdate: () => renderWave(waveProxy.pistonIndex)
     });
 
-    // GESTIONAR LA LÍNEA DE PROGRESO Y AUTOPLAY
-    if (progressTween) progressTween.kill(); // Matamos la animación anterior de la línea
+    // GESTIONAR LA LÍNEA DE PROGRESO
+    if (progressTween) progressTween.kill();
 
     if (activeLine) {
       progressTween = gsap.fromTo(activeLine, 
@@ -144,7 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
           duration: TIME_PER_TAB, 
           ease: "none",
           onComplete: () => {
-            // Cuando la línea llega al 100%, pasa al siguiente tab automáticamente
             if (!isPaused) {
               currentIndex = (currentIndex + 1) % tabs.length;
               goToTab(currentIndex);
@@ -153,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
 
-      // Si estaba pausado, congelamos la línea de inmediato
+      // Si el estado global es pausado, pausamos la línea recién creada
       if (isPaused) progressTween.pause();
     }
   }
@@ -162,7 +154,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // 5. EVENTOS DE LOS CONTROLES MANUALES
   // ==========================================
   
-  // Click en un tab específico
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
         hasAnimated = true; 
@@ -171,7 +162,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Botón Siguiente
   if (nextBtn) {
     nextBtn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -180,7 +170,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Botón Previo
   if (prevBtn) {
     prevBtn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -189,30 +178,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Botón Play/Pause
   if (playPauseBtn) {
     playPauseBtn.addEventListener("click", (e) => {
       e.preventDefault();
       isPaused = !isPaused;
 
-      // Intercambiar los iconos
       if (iconPlay && iconPause) {
         iconPlay.style.display = isPaused ? "block" : "none";
         iconPause.style.display = isPaused ? "none" : "block";
       }
 
-      // Pausar o reanudar la línea de progreso
       if (progressTween) {
-        if (isPaused) {
-          progressTween.pause();
-        } else {
-          progressTween.play();
-        }
+        if (isPaused) progressTween.pause();
+        else progressTween.play();
       }
     });
   }
 
-  // Estado visual inicial de los iconos
+  // Sincronización inicial de iconos según el estado de pausa
   if (iconPlay && iconPause) {
     iconPlay.style.display = isPaused ? "block" : "none";
     iconPause.style.display = isPaused ? "none" : "block";
@@ -221,10 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================
   // 6. INTERSECTION OBSERVER (AUTO-START)
   // ==========================================
-  const observerOptions = {
-    root: null, 
-    threshold: 0.3 
-  };
+  const observerOptions = { root: null, threshold: 0.3 };
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -245,7 +225,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (skillSection) {
     observer.observe(skillSection);
   } else {
-    console.warn("GSAP Anim: No se encontró el contenedor. Forzando inicio.");
     goToTab(currentIndex);
   }
 });
