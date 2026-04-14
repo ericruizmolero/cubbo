@@ -19,34 +19,38 @@ document.addEventListener("DOMContentLoaded", () => {
   const waveProxy = { pistonIndex: 15 }; 
   let hasAnimated = false; 
 
-  let currentIndex = 2; 
-  let isPaused = true; 
+  // CONFIGURACIÓN DE ESTADO
+  let currentIndex = 2;   
+  let isPaused = true;    
   let progressTween = null;
   const TIME_PER_TAB = 6; 
   const MOBILE_BREAKPOINT = 767; 
 
   // ==========================================
-  // NUEVO: MEDIR Y APLICAR ANCHO DE LOS TABS
+  // 2. SINCRONIZACIÓN DE ANCHOS (TOTAL - 8REM)
   // ==========================================
   function syncRadioWidth() {
     if (window.innerWidth <= MOBILE_BREAKPOINT) {
       if (tabs.length > 0 && radioLayout) {
-        // Medimos desde el inicio del primer tab hasta el final del último
+        // Obtenemos valor de 1rem dinámicamente
+        const remValue = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const adjustment = 8 * remValue; // 8rem en píxeles
+
         const firstTab = tabs[0];
         const lastTab = tabs[tabs.length - 1];
-        const totalWidth = (lastTab.offsetLeft + lastTab.offsetWidth) - firstTab.offsetLeft;
+        let totalWidth = (lastTab.offsetLeft + lastTab.offsetWidth) - firstTab.offsetLeft;
         
-        // Aplicamos ese ancho exacto al contenedor absoluto de la ola
-        radioLayout.style.width = `${totalWidth}px`;
+        // Aplicamos la resta
+        const finalWidth = Math.max(0, totalWidth - adjustment);
+        radioLayout.style.width = `${finalWidth}px`;
       }
     } else {
-      // En desktop limpiamos el estilo en línea para que CSS haga su trabajo
       if (radioLayout) radioLayout.style.width = "";
     }
   }
 
   // ==========================================
-  // 2. PREPARAR TEXTOS
+  // 3. PREPARAR TEXTOS (SPLIT WORDS/CHARS)
   // ==========================================
   function splitTextToSpans(selector) {
     const elements = document.querySelectorAll(selector);
@@ -77,7 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
   splitTextToSpans('.skill_bottom-left-head h3, .skill_bottom-left-bottom p');
 
   // ==========================================
-  // 3. LÓGICA DE LA OLA (FRECUENCIAS)
+  // 4. LÓGICA DE LA OLA (FRECUENCIAS)
   // ==========================================
   function renderWave(centerIndex) {
     const roundedCenter = Math.round(centerIndex);
@@ -93,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentContentAnim = null;
 
   // ==========================================
-  // 4. ANIMACIÓN PRINCIPAL Y LÍNEA DE PROGRESO
+  // 5. FUNCIÓN MAESTRA: CAMBIO DE TAB
   // ==========================================
   function goToTab(activeIndex) {
     tabs.forEach(t => t.classList.remove("is-active"));
@@ -145,6 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
       onUpdate: () => renderWave(waveProxy.pistonIndex)
     });
 
+    // Barra de Progreso
     if (progressTween) progressTween.kill();
     if (activeLine) {
       progressTween = gsap.fromTo(activeLine, 
@@ -164,24 +169,20 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isPaused) progressTween.pause();
     }
 
-    // ==========================================
-    // CENTRAR TABS EN MOBILE
-    // ==========================================
+    // Centrado en Mobile
     if (window.innerWidth <= MOBILE_BREAKPOINT) { 
       const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
       const centerIndex = Math.floor(tabs.length / 2);
       const shiftX = (centerIndex - activeIndex) * stepDist;
 
-      gsap.to(tabs, { x: shiftX, duration: 0.6, ease: "power2.inOut", overwrite: "auto" });
-      if (radioLayout) gsap.to(radioLayout, { x: shiftX, duration: 0.6, ease: "power2.inOut", overwrite: "auto" });
+      gsap.to([tabs, radioLayout], { x: shiftX, duration: 0.6, ease: "power2.inOut", overwrite: "auto" });
     } else {
-      gsap.to(tabs, { x: 0, duration: 0.4 });
-      if (radioLayout) gsap.to(radioLayout, { x: 0, duration: 0.4 });
+      gsap.to([tabs, radioLayout], { x: 0, duration: 0.4 });
     }
   }
 
   // ==========================================
-  // 5. EVENTOS DE LOS CONTROLES MANUALES
+  // 6. EVENTOS Y CONTROLES
   // ==========================================
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
@@ -211,12 +212,10 @@ document.addEventListener("DOMContentLoaded", () => {
     playPauseBtn.addEventListener("click", (e) => {
       e.preventDefault();
       isPaused = !isPaused;
-
       if (iconPlay && iconPause) {
         iconPlay.style.display = isPaused ? "block" : "none";
         iconPause.style.display = isPaused ? "none" : "block";
       }
-
       if (progressTween) {
         if (isPaused) progressTween.pause();
         else progressTween.play();
@@ -224,53 +223,48 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Sincronizar iconos iniciales
   if (iconPlay && iconPause) {
     iconPlay.style.display = isPaused ? "block" : "none";
     iconPause.style.display = isPaused ? "none" : "block";
   }
 
   window.addEventListener("resize", () => {
-    // Re-medimos el ancho en caso de cambio de orientación
     syncRadioWidth(); 
-
     if (hasAnimated) {
        if (window.innerWidth <= MOBILE_BREAKPOINT) {
           const stepDist = tabs.length > 1 ? (tabs[1].offsetLeft - tabs[0].offsetLeft) : 0;
           const centerIndex = Math.floor(tabs.length / 2);
           const shiftX = (centerIndex - currentIndex) * stepDist;
-          gsap.set(tabs, { x: shiftX });
-          if (radioLayout) gsap.set(radioLayout, { x: shiftX });
+          gsap.set([tabs, radioLayout], { x: shiftX });
        } else {
-          gsap.set(tabs, { x: 0 });
-          if (radioLayout) gsap.set(radioLayout, { x: 0 });
+          gsap.set([tabs, radioLayout], { x: 0 });
        }
     }
   });
 
   // ==========================================
-  // 6. INTERSECTION OBSERVER (AUTO-START)
+  // 7. INICIALIZACIÓN (OBSERVER)
   // ==========================================
   const observerOptions = { root: null, threshold: 0.3 };
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting && !hasAnimated) {
         hasAnimated = true; 
+        syncRadioWidth(); // Medir justo antes de mostrar
         goToTab(currentIndex); 
         observer.unobserve(entry.target);
       }
     });
   }, observerOptions);
 
-  // ==========================================
-  // 7. INICIALIZACIÓN
-  // ==========================================
-  syncRadioWidth(); // Medimos y aplicamos el ancho al inicio
   renderWave(waveProxy.pistonIndex);
   tabContents.forEach(c => c.style.display = "none");
 
   if (skillSection) {
     observer.observe(skillSection);
   } else {
+    syncRadioWidth();
     goToTab(currentIndex);
   }
 });
