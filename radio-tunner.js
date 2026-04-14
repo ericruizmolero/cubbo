@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
             stagger: 0.15, // Primero entra el h3, luego el p
             ease: "power3.out" 
           }, 
-          0
+          0.1
         );
       }
 
