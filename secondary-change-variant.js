@@ -15,7 +15,7 @@ const variantEls = document.querySelectorAll([
 
 // Estado
 let isScrolledPast = false;
-let darkModeOverrides = 0; // Usamos contador en lugar de booleano
+let darkModeOverrides = 0; // Usamos contador para evitar bugs con secciones pegadas
 let variantRafId; // Variable para el debounce
 
 /**
@@ -37,7 +37,7 @@ function updateNavbar() {
 
     // 2. Si NO hay Dark Mode -> Evaluamos el Scroll
     if (isScrolledPast) {
-      // Hemos bajado más de 50px -> Variante Secundaria
+      // Hemos bajado más de la cuenta -> Variante Secundaria
       variantEls.forEach(el => {
         el.classList.add(VARIANT_SECONDARY);
         el.classList.remove(VARIANT_TERTIARY);
@@ -52,6 +52,9 @@ function updateNavbar() {
   });
 }
 
+/**
+ * ── INICIALIZACIÓN ──
+ */
 const initSecondaryPage = () => {
   
   // Forzar el estado inicial nada más cargar
@@ -76,23 +79,37 @@ const initSecondaryPage = () => {
       trigger: section,
       start: "top 80px",
       end: "bottom 80px",
-      // Sumamos al entrar, restamos al salir
+      // Sumamos al entrar, restamos al salir (evita saltos entre secciones juntas)
       onEnter: () => { darkModeOverrides++; updateNavbar(); },
       onLeave: () => { darkModeOverrides--; updateNavbar(); },
       onEnterBack: () => { darkModeOverrides++; updateNavbar(); },
       onLeaveBack: () => { darkModeOverrides--; updateNavbar(); },
-      fastScrollEnd: true // Buena práctica por si el usuario hace scroll muy rápido
+      fastScrollEnd: true // Cubre casos de scroll hiper-rápido
     });
   });
 
-  // Refrescar para asegurar precisión en los triggers
-  // Idealmente, también envuelto en un chequeo de fuentes como en el script principal
+  /**
+   * ── 3. RECÁLCULO DE SEGURIDAD (ANTI-DESINCRONIZACIÓN) ──
+   */
+  
+  // A. Forzar recálculo cuando las fuentes terminen de cargar y pintar
   if (document.fonts) {
     document.fonts.ready.then(() => ScrollTrigger.refresh());
-  } else {
-    ScrollTrigger.refresh();
   }
+
+  // B. Observador de mutaciones de tamaño (Imágenes lazy-load, expansiones, etc.)
+  let resizeTimer;
+  const ro = new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 100); // Pequeño delay para no saturar la CPU si hay muchos cambios
+  });
+  ro.observe(document.body);
+  
+  // C. Recálculo extra preventivo por si algún script externo inyecta cosas tarde
+  setTimeout(() => ScrollTrigger.refresh(), 500);
 };
 
-// Ejecutar al cargar
+// Usar 'load' es clave, ya que espera a imágenes y hojas de estilo
 window.addEventListener("load", initSecondaryPage);
