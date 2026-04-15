@@ -22,10 +22,19 @@ const RETURN_EASE = "power2.out";
 // Estado
 let baseVariantActive = false;
 let darkModeOverrides = 0;
+let variantRafId; // Variable para gestionar el requestAnimationFrame
 
+/**
+ * Aplica la variante con debounce de 1 frame para evitar parpadeos
+ * entre secciones contiguas (boundary overlap de ScrollTrigger).
+ */
 function applyVariant() {
-  const shouldHaveVariant = baseVariantActive && darkModeOverrides === 0;
-  variantEls.forEach(el => el.classList.toggle(VARIANT, shouldHaveVariant));
+  cancelAnimationFrame(variantRafId);
+  
+  variantRafId = requestAnimationFrame(() => {
+    const shouldHaveVariant = baseVariantActive && darkModeOverrides === 0;
+    variantEls.forEach(el => el.classList.toggle(VARIANT, shouldHaveVariant));
+  });
 }
 
 /**
@@ -41,11 +50,10 @@ const init = () => {
   }, (context) => {
     let { isDesktop } = context.conditions;
 
-// --- ACTIVACIÓN BASE ---
+    // --- ACTIVACIÓN BASE ---
     ScrollTrigger.create({
       trigger: heroBg,
       // Se activa cuando el "bottom" del hero está a 100px de tocar el "top" de la pantalla.
-      // Puedes cambiar "100px" por "10%" o el valor que mejor se sienta.
       start: "bottom 100px", 
       onEnter: () => { baseVariantActive = true; applyVariant(); },
       onLeaveBack: () => { baseVariantActive = false; applyVariant(); },
@@ -117,7 +125,7 @@ const init = () => {
     });
   });
 
-  // 3. RECÁLCULO DE SEGURIDAD (Aquí se resuelve tu problema de markers)
+  // 3. RECÁLCULO DE SEGURIDAD
   
   // A. Forzar al terminar de cargar fuentes
   if (document.fonts) {
