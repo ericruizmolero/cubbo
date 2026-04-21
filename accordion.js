@@ -5,7 +5,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const viewport = wrapper.querySelector('[data-cascading-viewport]');
   const slides = Array.from(viewport.querySelectorAll('[data-cascading-slide]'));
   
-  const globalTextContainer = wrapper.querySelector('.brand_bottom-text-left h3'); 
+  // SELECTORES DE DESTINO (Donde se muestra el texto)
+  // Buscamos el div con la clase de Rich Text de Webflow
+  const globalTextContainer = wrapper.querySelector('.brand_bottom-text-left .w-richtext'); 
   const globalBtn = wrapper.querySelector('.brand_bottom-text-layout .button_icon');
   const globalBtnText = globalBtn ? globalBtn.querySelector('div:first-child') : null;
 
@@ -27,7 +29,7 @@ document.addEventListener('DOMContentLoaded', function() {
       slide.setAttribute('data-status', level === 1 ? 'active' : 'inactive');
     });
 
-    // 2. Control de visibilidad de flechas en Tablet/Mobile (Sin Loop)
+    // 2. Control de visibilidad de flechas
     if (isMobile) {
       if (prevBtn) {
         prevBtn.style.opacity = (activeIndex === 0) ? "0.2" : "1";
@@ -38,20 +40,19 @@ document.addEventListener('DOMContentLoaded', function() {
         nextBtn.style.pointerEvents = (activeIndex === total - 1) ? "none" : "auto";
       }
     } else {
-      // En Desktop siempre visibles (Loop activado)
       if (prevBtn) { prevBtn.style.opacity = "1"; prevBtn.style.pointerEvents = "auto"; }
       if (nextBtn) { nextBtn.style.opacity = "1"; nextBtn.style.pointerEvents = "auto"; }
     }
 
-    // 3. Sincronizar Texto y Botón
+    // 3. Sincronizar Rich Text y Botón
     const activeSlide = slides[activeIndex];
-    const sourceText = activeSlide.querySelector('.brand_slide-hidden-text h3');
+    
+    // SELECTORES DE ORIGEN (El contenido oculto en cada slide)
+    const sourceRichText = activeSlide.querySelector('.brand_slide-hidden-text .w-richtext');
     const sourceLink = activeSlide.querySelector('.brand_slide-hidden-link');
 
-    if (globalTextContainer && sourceText) {
+    if (globalTextContainer && sourceRichText) {
       const footerLayout = wrapper.querySelector('.brand_bottom-text-layout');
-      
-      // Control de animación: 0 de movimiento en Y para móvil (solo fade), 10 para desktop (fade + slide)
       const yOffset = isMobile ? 0 : 10;
 
       gsap.to(footerLayout, {
@@ -59,12 +60,20 @@ document.addEventListener('DOMContentLoaded', function() {
         y: yOffset,
         duration: 0.3,
         onComplete: () => {
-          globalTextContainer.innerHTML = sourceText.innerHTML;
+          // Inyectamos todo el HTML interno (h5, em, etc.)
+          globalTextContainer.innerHTML = sourceRichText.innerHTML;
+
           if (globalBtn && sourceLink) {
             globalBtn.setAttribute('href', sourceLink.getAttribute('href'));
             if (globalBtnText) globalBtnText.innerText = sourceLink.innerText;
           }
-          gsap.to(footerLayout, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" });
+          
+          gsap.to(footerLayout, { 
+            opacity: 1, 
+            y: 0, 
+            duration: 0.4, 
+            ease: "power2.out" 
+          });
         }
       });
     }
@@ -76,10 +85,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let nextIdx;
 
     if (isMobile) {
-      // MÓVIL: Lógica lineal capada (Sin Loop)
       nextIdx = Math.max(0, Math.min(total - 1, idx));
     } else {
-      // DESKTOP: Lógica circular (Con Loop)
       nextIdx = (idx + total) % total;
     }
 
@@ -89,7 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
     activeIndex = nextIdx;
     update();
     
-    setTimeout(() => { isAnimating = false; }, 400); // 400ms para coincidir con la duración del fade in de GSAP
+    setTimeout(() => { isAnimating = false; }, 400);
   }
 
   // EVENTOS
@@ -100,35 +107,33 @@ document.addEventListener('DOMContentLoaded', function() {
   if (prevBtn) prevBtn.onclick = () => goTo(activeIndex - 1);
   if (nextBtn) nextBtn.onclick = () => goTo(activeIndex + 1);
 
-  // Lógica de Draggable
+  // Draggable
   const proxy = document.createElement('div');
   Draggable.create(proxy, {
     trigger: viewport,
     type: "x",
-    dragClickables: true, // Ignora clics en enlaces/botones y evita falsos inicios de arrastre
+    dragClickables: true,
     onDragEnd: function() {
       if (this.x < -60) goTo(activeIndex + 1);
       if (this.x > 60) goTo(activeIndex - 1);
-      gsap.set(this.target, { x: 0 }); // Reseteamos el proxy
+      gsap.set(this.target, { x: 0 });
     }
   });
 
-  // Navegación por teclado
+  // Teclado
   document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight') goTo(activeIndex + 1);
     if (e.key === 'ArrowLeft') goTo(activeIndex - 1);
   });
 
-  // Control optimizado del Resize
+  // Resize
   let windowWidth = window.innerWidth;
   window.addEventListener('resize', () => {
-    // Solo se actualiza si cambia el ancho (evita el glitch en mobile al ocultarse/mostrarse la barra del navegador)
     if (window.innerWidth !== windowWidth) {
       windowWidth = window.innerWidth;
       update();
     }
   });
 
-  // Inicialización de la vista
   update();
 });
