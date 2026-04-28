@@ -51,7 +51,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
     // --- 2. CONFIGURACIÓN ---
-    const ITEMS_POR_PAGINA = 4; 
+    const ITEMS_POR_PAGINA = 10; 
 
     // --- REFERENCIAS DEL DOM (Ahora sí selecciona los 272 posts) ---
     const articulos = Array.from(document.querySelectorAll('.feed_coll-item'));
