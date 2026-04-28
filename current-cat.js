@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (webflowPagination) webflowPagination.style.display = 'none';
 
     // --- 1. CONFIGURACIÓN INICIAL ---
-    const ITEMS_POR_PAGINA = 4; // Ajustado a 4 según tu último código
+    const ITEMS_POR_PAGINA = 10; // Ajustado a 4 según tu último código
     let articulos = Array.from(document.querySelectorAll('.feed_coll-item'));
     const categoriasBtns = document.querySelectorAll('.feed_cat');
     const btnCargarMas = document.querySelector('.feed_button');
