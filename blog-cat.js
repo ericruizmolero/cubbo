@@ -1,20 +1,28 @@
 document.addEventListener("DOMContentLoaded", () => {
     // --- 0. PREPARACIÓN ---
+    
+    // 1. Detectar el idioma basado en la URL (si estamos en /br o no)
+    const esPortugues = window.location.pathname.includes('/br');
+    // 2. Asignar el texto dinámicamente
+    const TEXTO_TODOS = esPortugues ? 'Todos os artigos' : 'Todos los artículos';
+
     const webflowPagination = document.querySelector('.w-pagination-wrapper');
     if (webflowPagination) webflowPagination.style.display = 'none';
 
     const ITEMS_POR_PAGINA = 10; 
-    let articulos = Array.from(document.querySelectorAll('.feed_coll-item')); // Guardamos los iniciales en let
+    let articulos = Array.from(document.querySelectorAll('.feed_coll-item'));
     const categoriasBtns = document.querySelectorAll('.feed_cat');
     const btnCargarMas = document.querySelector('.feed_button');
     
-    let categoriaActual = 'Todos los artículos';
+    // 3. Usar la variable en la inicialización
+    let categoriaActual = TEXTO_TODOS; 
     let articulosVisibles = ITEMS_POR_PAGINA;
 
     // --- 1. FUNCIÓN CENTRALIZADA PARA CONTAR Y RENDERIZAR ---
     function procesarYRenderizar() {
-        // 1A. Recalcular las categorías con los artículos que tengamos actualmente
-        const conteoCategorias = { 'Todos los artículos': articulos.length };
+        // 1A. Recalcular las categorías con los artículos actuales usando la variable
+        const conteoCategorias = {};
+        conteoCategorias[TEXTO_TODOS] = articulos.length;
 
         articulos.forEach(articulo => {
             const tags = articulo.querySelectorAll('.related_tagline');
@@ -49,7 +57,8 @@ document.addEventListener("DOMContentLoaded", () => {
             articulo.classList.remove('is-visible'); 
             articulo.style.display = 'none';
 
-            if (categoriaActual === 'Todos los artículos' || articulo.dataset.categoria === categoriaActual) {
+            // 4. Usar la variable en el filtro condicional
+            if (categoriaActual === TEXTO_TODOS || articulo.dataset.categoria === categoriaActual) {
                 articulosFiltrados.push(articulo);
             }
         });
@@ -66,7 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // --- 2. ARRANCAR INSTANTÁNEAMENTE CON LA PÁGINA 1 ---
-    // Esto hace que la web cargue rapidísimo sin esperar al AJAX
     procesarYRenderizar();
 
     // --- 3. DESCARGAR EL RESTO EN SEGUNDO PLANO ---
@@ -92,11 +100,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 nuevosArticulos.forEach(articulo => {
                     articulo.style.display = 'none'; 
                     contenedor.appendChild(articulo);
-                    // Agregamos el nuevo artículo a nuestra lista global de JavaScript
                     articulos.push(articulo); 
                 });
 
-                // Como han llegado artículos nuevos, recalculamos todo para actualizar los números
                 procesarYRenderizar();
 
                 botonSiguiente = doc.querySelector('.w-pagination-next');
@@ -107,8 +113,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Ejecutamos la función de segundo plano SIN la palabra "await"
-    // Esto permite que el navegador haga este trabajo "en la sombra"
     cargarRestoEnSegundoPlano();
 
     // --- 4. EVENTOS DE CLIC ---
