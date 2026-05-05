@@ -1,49 +1,50 @@
+/**
+ * Localized post date formatter
+ * 
+ * Reads elements with [post-date] attribute and reformats their dates
+ * to match the page locale (es-MX or pt-BR). Supports two text patterns:
+ *   - "12 min / 29 Apr"  → "12 min / 29 Abr"
+ *   - "29 Apr"           → "29 Abr"
+ */
 document.addEventListener("DOMContentLoaded", () => {
-  /* ====================================================================
-     TRADUCCIÓN Y FORMATO DE FECHA EN TODOS LOS ELEMENTOS
-     ==================================================================== */
-  
-  // 1. Seleccionamos TODOS los elementos con el atributo 'post-date'
-  const dateElements = document.querySelectorAll('[post-date]');
-  
-  // 2. Determinamos el idioma de la página una sola vez para ser más eficientes
-  const pageLang = document.documentElement.lang.toLowerCase();
-  const locale = pageLang.includes('br') ? 'pt-BR' : 'es-ES';
-  
-  // 3. Opciones de fecha (mes corto y día)
-  const dateOptions = { day: 'numeric', month: 'short' };
+  const dateElements = document.querySelectorAll("[post-date]");
+  if (!dateElements.length) return;
 
-  // 4. Iteramos sobre cada elemento encontrado
-  dateElements.forEach((dateElement) => {
-    // Leemos el texto completo (ej: "12 min / 29 Apr")
-    const rawText = dateElement.textContent.trim();
-    
-    // Separamos el texto usando la barra "/"
-    const parts = rawText.split('/');
-    
-    // Si tiene el formato "tiempo / fecha"
+  // Detect locale from <html lang="..."> attribute
+  const pageLang = document.documentElement.lang.toLowerCase();
+  const locale = pageLang.startsWith("pt") ? "pt-BR" : "es-MX";
+  const dateOptions = { day: "numeric", month: "short" };
+
+  /**
+   * Parses a date string (e.g. "29 Apr") and returns it formatted
+   * for the current locale, with the month capitalized.
+   * Returns null if the input cannot be parsed.
+   */
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return null;
+
+    let formatted = new Intl.DateTimeFormat(locale, dateOptions).format(date);
+
+    // Remove any trailing periods (e.g. "abr." → "abr")
+    formatted = formatted.replace(/\./g, "");
+
+    // Capitalize the month abbreviation to match the original design
+    return formatted.replace(/\s([a-z])/, (_, char) => ` ${char.toUpperCase()}`);
+  };
+
+  dateElements.forEach((el) => {
+    const rawText = el.textContent.trim();
+    const parts = rawText.split("/").map((part) => part.trim());
+
     if (parts.length === 2) {
-      const timePart = parts[0].trim(); // ej: "12 min"
-      const datePart = parts[1].trim(); // ej: "29 Apr"
-      
-      const originalDate = new Date(datePart);
-      
-      if (!isNaN(originalDate.getTime())) {
-        let formattedDate = new Intl.DateTimeFormat(locale, dateOptions).format(originalDate);
-        formattedDate = formattedDate.replace('.', ''); // Limpiamos el punto final si aparece
-        
-        // Actualizamos ESTE elemento en concreto
-        dateElement.textContent = `${timePart} / ${formattedDate}`;
-      }
-    } 
-    // Fallback: Si el post solo tiene la fecha (ej: "29 Apr")
-    else {
-      const fallbackDate = new Date(rawText);
-      
-      if (!isNaN(fallbackDate.getTime())) {
-        let formattedDate = new Intl.DateTimeFormat(locale, dateOptions).format(fallbackDate);
-        dateElement.textContent = formattedDate.replace('.', '');
-      }
+      // Pattern: "12 min / 29 Apr"
+      const formatted = formatDate(parts[1]);
+      if (formatted) el.textContent = `${parts[0]} / ${formatted}`;
+    } else {
+      // Pattern: "29 Apr"
+      const formatted = formatDate(rawText);
+      if (formatted) el.textContent = formatted;
     }
   });
 });
