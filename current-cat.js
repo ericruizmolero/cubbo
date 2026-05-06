@@ -1,29 +1,37 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // --- 0. PREPARACIÓN: OCULTAR PAGINACIÓN NATIVA ---
+    // --- 0. PREPARACIÓN ---
+    
+    // 1. Detectar el idioma basado en la URL (si estamos en /br o no)
+    const esPortugues = window.location.pathname.includes('/br');
+    // 2. Asignar el texto dinámicamente
+    const TEXTO_TODOS = esPortugues ? 'Todos os artigos' : 'Todos los artículos';
+
+    // Ocultar paginación nativa de Webflow
     const webflowPagination = document.querySelector('.w-pagination-wrapper');
     if (webflowPagination) webflowPagination.style.display = 'none';
 
     // --- 1. CONFIGURACIÓN INICIAL ---
-    const ITEMS_POR_PAGINA = 10; // Ajustado a 4 según tu último código
+    const ITEMS_POR_PAGINA = 10; 
     let articulos = Array.from(document.querySelectorAll('.feed_coll-item'));
     const categoriasBtns = document.querySelectorAll('.feed_cat');
     const btnCargarMas = document.querySelector('.feed_button');
-
+    
     // NUEVO: Buscamos el elemento que tiene el atributo 'blog-cat'
     const elementoCategoriaActual = document.querySelector('[blog-cat]');
 
-    // NUEVO: Si existe, leemos su texto para arrancar en esa categoría.
-    let categoriaActual = 'Todos los artículos';
+    // NUEVO: Si existe, leemos su texto para arrancar en esa categoría. Si no, usamos el de por defecto (dependiendo del idioma).
+    let categoriaActual = TEXTO_TODOS; 
     if (elementoCategoriaActual) {
         categoriaActual = elementoCategoriaActual.textContent.trim();
     }
 
     let articulosVisibles = ITEMS_POR_PAGINA;
 
-    // --- 2. FUNCIÓN CENTRALIZADA (CONTAR, ACTUALIZAR Y RENDERIZAR) ---
+    // --- 2. FUNCIÓN CENTRALIZADA PARA CONTAR Y RENDERIZAR ---
     function procesarYRenderizar() {
-        // 2A. Recalcular las categorías con los artículos actuales
-        const conteoCategorias = { 'Todos los artículos': articulos.length };
+        // 2A. Recalcular las categorías con los artículos actuales usando la variable de idioma
+        const conteoCategorias = {};
+        conteoCategorias[TEXTO_TODOS] = articulos.length;
 
         articulos.forEach(articulo => {
             const tags = articulo.querySelectorAll('.related_tagline');
@@ -36,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // 2B. Actualizar los números visuales y el botón activo
+        // 2B. Actualizar los números visuales en los botones
         categoriasBtns.forEach(btn => {
             const nombreCategoria = btn.querySelector('div:first-child').textContent.trim();
             const numElement = btn.querySelector('.feed_number');
@@ -44,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             if (numElement) numElement.textContent = `[${cantidad}]`;
 
-            // Mantener activo el botón que coincida con la categoría que leímos de [blog-cat]
+            // Mantener la clase activa correctamente según la categoría detectada
             if (nombreCategoria === categoriaActual) {
                 btn.classList.add('is-active');
             } else {
@@ -58,7 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
             articulo.classList.remove('is-visible'); 
             articulo.style.display = 'none';
 
-            if (categoriaActual === 'Todos los artículos' || articulo.dataset.categoria === categoriaActual) {
+            // Usar la variable en el filtro condicional
+            if (categoriaActual === TEXTO_TODOS || articulo.dataset.categoria === categoriaActual) {
                 articulosFiltrados.push(articulo);
             }
         });
@@ -74,8 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // --- 3. ARRANCAR INSTANTÁNEAMENTE ---
-    // Carga los primeros artículos en menos de un segundo
+    // --- 3. ARRANCAR INSTANTÁNEAMENTE CON LA PÁGINA 1 ---
     procesarYRenderizar();
 
     // --- 4. DESCARGAR EL RESTO EN SEGUNDO PLANO ---
@@ -101,10 +109,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 nuevosArticulos.forEach(articulo => {
                     articulo.style.display = 'none'; 
                     contenedor.appendChild(articulo);
-                    articulos.push(articulo); // Los añadimos a nuestra lista global
+                    articulos.push(articulo); 
                 });
 
-                // Como han llegado artículos nuevos por detrás, recalculamos todo para actualizar los números y los filtros
                 procesarYRenderizar();
 
                 botonSiguiente = doc.querySelector('.w-pagination-next');
@@ -115,7 +122,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Ejecutamos sin "await" para no bloquear la pantalla del usuario
     cargarRestoEnSegundoPlano();
 
     // --- 5. EVENTOS DE CLIC ---
